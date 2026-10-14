@@ -1,0 +1,3 @@
+# Espace d'administration : aucune page ne doit être indexée.
+User-agent: *
+Disallow: /

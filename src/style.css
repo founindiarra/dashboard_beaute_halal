@@ -1,0 +1,282 @@
+@import 'tailwindcss';
+
+/* ------------------------------------------------------------------
+   Beauté Halal — Administration
+
+   Même identité que le site public (doré, chocolat, sable), mais une
+   application de travail : fond plus neutre, densité plus forte, moins
+   d'effets. On reconnaît la marque sans confondre les deux interfaces.
+------------------------------------------------------------------- */
+@theme {
+  --font-display: 'Cormorant Garamond', ui-serif, Georgia, serif;
+  --font-sans: 'Jost', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+
+  /* Identité partagée avec le site public */
+  --color-cream: #fdfbf7;
+  --color-ivory: #f8f2e9;
+  --color-sand: #efe4d5;
+  --color-sand-dark: #e0cdb6;
+  --color-gold: #b08a57;
+  --color-gold-soft: #cbac81;
+  /*
+   * Le brun du site public, à l'identique : c'est la même marque, les deux
+   * interfaces doivent se répondre. « cocoa-dark » porte les grands aplats —
+   * barre latérale, boutons — et le texte sombre sur fond clair.
+   */
+  --color-cocoa: #7c4527;
+  --color-cocoa-dark: #58301a;
+  --color-ink: #3a2113;
+  --color-muted: #8a7566;
+
+  /* Propres à l'administration : surfaces de travail */
+  --color-canvas: #faf7f3;
+  --color-surface: #ffffff;
+  --color-line: #ece4da;
+  --color-line-soft: #f5efe8;
+
+  /* États — sobres, jamais criards */
+  --color-ok: #3f7d5b;
+  --color-ok-bg: #eaf3ee;
+  --color-warn: #9a7328;
+  --color-warn-bg: #faf3e3;
+  --color-danger: #a84a35;
+  --color-danger-bg: #fbf0ec;
+  --color-info: #40607f;
+  --color-info-bg: #eef2f6;
+
+  --shadow-card: 0 1px 2px rgba(88, 48, 26, 0.04), 0 10px 30px -20px rgba(88, 48, 26, 0.3);
+  --shadow-pop: 0 12px 40px -12px rgba(88, 48, 26, 0.32);
+}
+
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    margin: 0;
+    background-color: var(--color-canvas);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    font-weight: 400;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  h1,
+  h2,
+  h3 {
+    font-weight: 500;
+    line-height: 1.25;
+    color: var(--color-cocoa-dark);
+  }
+
+  img {
+    max-width: 100%;
+    display: block;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-gold);
+    outline-offset: 2px;
+    border-radius: 6px;
+  }
+
+  ::selection {
+    background: var(--color-sand);
+    color: var(--color-ink);
+  }
+
+  /* Barres de défilement discrètes dans les zones denses */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--color-sand-dark) transparent;
+  }
+}
+
+@layer components {
+  .card {
+    background: var(--color-surface);
+    border: 1px solid var(--color-line);
+    border-radius: 1.15rem;
+    box-shadow: var(--shadow-card);
+  }
+
+  /*
+    Tuile de compteur. La pastille d'icône, le chiffre et le lien du bas sont
+    toujours alignés d'une tuile à l'autre : le chiffre pousse le lien vers le
+    bas, le lien reste collé au pied. Sans cela, une tuile dont le libellé
+    tient sur deux lignes décale tout le rang.
+  */
+  .stat-card {
+    display: flex;
+    flex-direction: column;
+    gap: 0.9rem;
+    padding: 1.1rem 1.15rem 0.9rem;
+  }
+
+  .stat-icon {
+    display: grid;
+    place-items: center;
+    width: 2.6rem;
+    height: 2.6rem;
+    border-radius: 0.85rem;
+    background: var(--color-cocoa-dark);
+    color: var(--color-gold-soft);
+  }
+
+  .stat-value {
+    font-family: var(--font-display);
+    font-size: 2rem;
+    line-height: 1.05;
+    color: var(--color-cocoa-dark);
+  }
+
+  .stat-link {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    margin-top: auto;
+    padding-top: 0.75rem;
+    border-top: 1px solid var(--color-line-soft);
+    font-size: 0.78rem;
+    color: var(--color-muted);
+    transition: color 0.15s ease;
+  }
+
+  .card:hover .stat-link {
+    color: var(--color-cocoa-dark);
+  }
+
+  /* Lien d'en-tête de panneau : « Voir tous → » */
+  .panel-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    font-size: 0.75rem;
+    color: var(--color-muted);
+    transition: color 0.15s ease;
+  }
+
+  .panel-link:hover {
+    color: var(--color-gold);
+  }
+
+  /* Initiales tenant lieu de photo dans les listes de clientes. */
+  .avatar {
+    display: grid;
+    place-items: center;
+    width: 2.1rem;
+    height: 2.1rem;
+    flex-shrink: 0;
+    border-radius: 999px;
+    background: var(--color-ivory);
+    color: var(--color-cocoa);
+    font-size: 0.72rem;
+    font-weight: 500;
+    letter-spacing: 0.02em;
+  }
+
+  .label {
+    display: block;
+    font-size: 0.75rem;
+    font-weight: 500;
+    letter-spacing: 0.04em;
+    color: var(--color-cocoa);
+    margin-bottom: 0.35rem;
+  }
+
+  .input {
+    width: 100%;
+    border-radius: 0.6rem;
+    border: 1px solid var(--color-line);
+    background: var(--color-surface);
+    padding: 0.55rem 0.8rem;
+    font-size: 0.9rem;
+    font-family: inherit;
+    color: var(--color-ink);
+    transition:
+      border-color 0.15s ease,
+      box-shadow 0.15s ease;
+  }
+
+  .input::placeholder {
+    color: color-mix(in srgb, var(--color-muted) 55%, transparent);
+  }
+
+  .input:focus {
+    outline: none;
+    border-color: var(--color-gold);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-gold) 18%, transparent);
+  }
+
+  .input:disabled {
+    background: var(--color-line-soft);
+    color: var(--color-muted);
+    cursor: not-allowed;
+  }
+
+  .input[aria-invalid='true'] {
+    border-color: var(--color-danger);
+  }
+
+  /*
+    Conteneur de tableau défilable.
+
+    « overflow-x: auto » seul ne suffit pas : Chrome fait malgré tout remonter
+    la largeur du tableau rogné jusqu'au scroll de la page, qui se met alors à
+    défiler latéralement sur mobile. « contain: paint » isole le rendu du
+    conteneur et règle le problème, sans empêcher le tableau de défiler à
+    l'intérieur. Vérifié à 320 px : window.scrollX reste à 0.
+  */
+  .table-scroll {
+    overflow-x: auto;
+    contain: paint;
+    overscroll-behavior-x: contain;
+  }
+
+  /* Tableaux : lisibilité d'abord, aucune bordure inutile */
+  .table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.875rem;
+  }
+
+  .table th {
+    text-align: left;
+    font-weight: 500;
+    font-size: 0.7rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--color-muted);
+    padding: 0.7rem 0.9rem;
+    border-bottom: 1px solid var(--color-line);
+    white-space: nowrap;
+  }
+
+  .table td {
+    padding: 0.8rem 0.9rem;
+    border-bottom: 1px solid var(--color-line-soft);
+    vertical-align: middle;
+  }
+
+  .table tbody tr:last-child td {
+    border-bottom: 0;
+  }
+
+  .table tbody tr:hover td {
+    background: color-mix(in srgb, var(--color-ivory) 45%, transparent);
+  }
+}
+
+@layer utilities {
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+}
