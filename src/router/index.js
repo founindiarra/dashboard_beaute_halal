@@ -28,7 +28,7 @@ const routes = [
     path: '/rendez-vous',
     name: 'appointments',
     component: () => import('@/pages/AppointmentsPage.vue'),
-    meta: { title: 'Rendez-vous' },
+    meta: { title: 'Rendez-vous', permission: 'appointments' },
   },
   /*
    * Traitement des rendez-vous confirmés.
@@ -38,65 +38,61 @@ const routes = [
    * suite — présence, bureau, agent, paiement, reçu — et ne montre donc que
    * les rendez-vous déjà décidés.
    */
+  // Ancien lien : la page « Demandes du site » n'existe plus, les demandes sont dans « Rendez-vous ».
+  { path: '/demandes', redirect: { name: 'appointments' } },
+  {
+    path: '/tarifs',
+    name: 'tarifs',
+    component: () => import('@/pages/TarifsPage.vue'),
+    meta: { title: 'Tarifs du site', permission: 'tarifs' },
+  },
   {
     path: '/rendez-vous-confirmes',
     name: 'confirmed',
     component: () => import('@/pages/ConfirmedAppointmentsPage.vue'),
-    meta: { title: 'Rendez-vous confirmés' },
+    meta: { title: 'Rendez-vous confirmés', permission: 'appointments' },
   },
   {
     path: '/rendez-vous-confirmes/:id',
     name: 'operation',
     component: () => import('@/pages/AppointmentOperationPage.vue'),
-    meta: { title: 'Fiche de rendez-vous' },
+    meta: { title: 'Fiche de rendez-vous', permission: 'appointments' },
   },
   {
     path: '/prestations',
     name: 'services',
     component: () => import('@/pages/ServicesPage.vue'),
-    meta: { title: 'Prestations' },
+    meta: { title: 'Prestations', permission: 'catalog' },
   },
   {
     path: '/categories',
     name: 'categories',
     component: () => import('@/pages/CategoriesPage.vue'),
-    meta: { title: 'Catégories de prestations' },
-  },
-  {
-    path: '/coiffures',
-    name: 'gallery',
-    component: () => import('@/pages/GalleryPage.vue'),
-    meta: { title: 'Nos coiffures' },
+    meta: { title: 'Catégories', permission: 'catalog' },
   },
   {
     path: '/avis',
     name: 'testimonials',
     component: () => import('@/pages/TestimonialsPage.vue'),
-    meta: { title: 'Avis clientes' },
+    meta: { title: 'Avis clientes', permission: 'catalog' },
   },
   {
     path: '/horaires',
     name: 'hours',
     component: () => import('@/pages/HoursPage.vue'),
-    meta: { title: 'Horaires d’ouverture' },
-  },
-  {
-    path: '/creneaux',
-    name: 'slots',
-    component: () => import('@/pages/SlotsPage.vue'),
-    meta: { title: 'Créneaux de réservation' },
+    meta: { title: 'Horaires d’ouverture', permission: 'schedule' },
   },
   {
     path: '/fermetures',
     name: 'closures',
     component: () => import('@/pages/ClosuresPage.vue'),
-    meta: { title: 'Fermetures exceptionnelles' },
+    meta: { title: 'Fermetures exceptionnelles', permission: 'schedule' },
   },
   {
     path: '/messages',
     name: 'messages',
     component: () => import('@/pages/MessagesPage.vue'),
-    meta: { title: 'Messages' },
+    meta: { title: 'Messages', permission: 'messages' },
   },
   {
     path: '/clientes',
@@ -128,22 +124,28 @@ const routes = [
     meta: { title: 'Comptabilité', permission: 'accounting' },
   },
   {
+    path: '/caisse-du-jour',
+    name: 'accountingDay',
+    component: () => import('@/pages/AccountingDayPage.vue'),
+    meta: { title: 'Caisse du jour', permission: 'accounting_day' },
+  },
+  {
     path: '/agents',
     name: 'agents',
     component: () => import('@/pages/AgentsPage.vue'),
-    meta: { title: 'Agents & coiffeuses' },
+    meta: { title: 'Agents & coiffeuses', permission: 'team' },
   },
   {
     path: '/bureaux',
     name: 'offices',
     component: () => import('@/pages/OfficesPage.vue'),
-    meta: { title: 'Bureaux & salons' },
+    meta: { title: 'Bureaux & salons', permission: 'team' },
   },
   {
     path: '/historique',
     name: 'history',
     component: () => import('@/pages/HistoryPage.vue'),
-    meta: { title: 'Historique des prestations' },
+    meta: { title: 'Historique des prestations', permission: 'appointments' },
   },
   /*
    * Page gardée par un DROIT et non par un rôle : `meta.permission` porte le
@@ -164,7 +166,7 @@ const routes = [
     path: '/parametres',
     name: 'salon',
     component: () => import('@/pages/SalonPage.vue'),
-    meta: { title: 'Paramètres du salon' },
+    meta: { title: 'Paramètres du salon', permission: 'salon' },
   },
   {
     path: '/compte',

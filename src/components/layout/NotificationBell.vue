@@ -2,7 +2,10 @@
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 
 import AdminIcon from '@/components/ui/AdminIcon.vue'
-import { appointments as appointmentsApi, customers as customersApi } from '@/services'
+import {
+  appointments as appointmentsApi,
+  customers as customersApi,
+} from '@/services'
 import { useAuthStore } from '@/stores/auth'
 import { formatDateShort, initialsOf } from '@/utils/format'
 
@@ -47,7 +50,9 @@ const error = ref(null)
 const conteneur = ref(null)
 
 /** Le rond rouge additionne les deux sujets : rien ne passe inaperçu. */
-const count = computed(() => (total.value || props.pending) + anniversaires.value.length)
+const count = computed(
+  () => (total.value || props.pending) + anniversaires.value.length,
+)
 
 /** « aujourd'hui », « demain », puis la date. */
 const quand = (jours) => {
@@ -61,7 +66,9 @@ const load = async () => {
   error.value = null
 
   const [demandes, fetes] = await Promise.allSettled([
-    appointmentsApi.list({ status: 'pending', order: 'asc', limit: 5, page: 1 }),
+    auth.can('appointments')
+      ? appointmentsApi.list({ status: 'pending', order: 'asc', limit: 5, page: 1 })
+      : Promise.resolve({ rows: [], meta: { total: 0 } }),
     auth.can('customers') ? customersApi.upcomingBirthdays(7) : Promise.resolve([]),
   ])
 
@@ -148,7 +155,7 @@ defineExpose({ load })
         class="card fixed inset-x-3 top-[3.6rem] z-50 overflow-hidden p-0 shadow-pop sm:absolute sm:inset-x-auto sm:right-0 sm:top-auto sm:mt-2 sm:w-[21rem]"
       >
         <div class="flex items-center justify-between gap-2 border-b border-line px-3.5 py-2.5">
-          <p class="text-[0.8rem] font-medium text-cocoa-dark">Demandes en attente</p>
+          <p class="text-[0.8rem] font-medium text-cocoa-dark">Rendez-vous en attente</p>
           <span v-if="total > 0" class="text-[0.7rem] text-muted">{{ total }} au total</span>
         </div>
 
@@ -178,7 +185,7 @@ defineExpose({ load })
                   {{ item.customer.firstName }} {{ item.customer.lastName }}
                 </span>
                 <span class="block truncate text-[0.7rem] text-muted">
-                  {{ formatDateShort(item.date) }} à {{ item.time }} · {{ item.service.name }}
+                  {{ formatDateShort(item.date) }}{{ item.timeToSet ? '' : ` à ${item.time}` }} · {{ item.service.name }}
                 </span>
               </span>
               <AdminIcon name="chevron-right" class="h-3.5 w-3.5 shrink-0 text-sand-dark" />

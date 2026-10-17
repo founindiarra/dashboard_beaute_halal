@@ -288,12 +288,18 @@ const onDeleted = () => {
             <tbody>
               <tr v-for="item in rows" :key="item.id" class="cursor-pointer" @click="open(item)">
                 <td class="whitespace-nowrap">{{ formatDateShort(item.date) }}</td>
-                <td class="whitespace-nowrap font-medium text-cocoa-dark">{{ item.time }}</td>
+                <td class="whitespace-nowrap font-medium text-cocoa-dark">
+                  <span v-if="item.timeToSet" class="text-xs font-normal italic text-muted">à fixer</span>
+                  <template v-else>{{ item.time }}</template>
+                </td>
                 <td class="min-w-[9rem]">
                   <span class="block text-cocoa-dark">
                     {{ item.customer.firstName }} {{ item.customer.lastName }}
                   </span>
-                  <span class="block text-xs text-muted">{{ item.reference }}</span>
+                  <span class="block text-xs text-muted">
+                    {{ item.reference }}
+                    <span v-if="item.source === 'site-v3'" class="ml-1 rounded bg-gold/15 px-1.5 py-px text-[0.6rem] font-medium uppercase tracking-wider text-gold">Site</span>
+                  </span>
                 </td>
                 <td class="hidden md:table-cell">
                   <span class="block text-xs">{{ item.customer.phone }}</span>

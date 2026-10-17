@@ -56,6 +56,7 @@ const openEdit = () => {
     note: cliente.value.note ?? '',
     smsOptIn: cliente.value.smsOptIn,
     emailOptIn: cliente.value.emailOptIn,
+    whatsappOptIn: cliente.value.whatsappOptIn !== false,
   }
   editing.value = true
 }
@@ -73,6 +74,7 @@ const save = async () => {
       note: form.value.note?.trim() || null,
       smsOptIn: Boolean(form.value.smsOptIn),
       emailOptIn: Boolean(form.value.emailOptIn),
+      whatsappOptIn: Boolean(form.value.whatsappOptIn),
     })
     editing.value = false
     await reload()
@@ -315,7 +317,7 @@ const TONS_MESSAGE = {
                   <span
                     class="mt-0.5 grid h-7 w-7 shrink-0 place-items-center rounded-full bg-ivory text-gold"
                   >
-                    <AdminIcon :name="m.channel === 'sms' ? 'send' : 'mail'" class="h-3.5 w-3.5" />
+                    <AdminIcon :name="m.channel === 'email' ? 'mail' : 'send'" class="h-3.5 w-3.5" />
                   </span>
                   <span class="min-w-0 flex-1">
                     <span class="block text-sm text-cocoa">{{ m.body }}</span>
@@ -383,6 +385,10 @@ const TONS_MESSAGE = {
                   :label="cliente.emailOptIn ? 'Accepte les e-mails' : 'Refuse les e-mails'"
                   :tone="cliente.emailOptIn ? 'ok' : 'neutral'"
                 />
+                <StatusBadge
+                  :label="cliente.whatsappOptIn !== false ? 'Accepte WhatsApp' : 'Refuse WhatsApp'"
+                  :tone="cliente.whatsappOptIn !== false ? 'ok' : 'neutral'"
+                />
               </div>
             </section>
 
@@ -422,6 +428,7 @@ const TONS_MESSAGE = {
         <BaseField v-model="form.note" label="Note" textarea :rows="3" />
         <BaseToggle v-model="form.smsOptIn" label="Accepte de recevoir des SMS" />
         <BaseToggle v-model="form.emailOptIn" label="Accepte de recevoir des e-mails" />
+        <BaseToggle v-model="form.whatsappOptIn" label="Accepte de recevoir des messages WhatsApp" />
       </div>
 
       <template #footer>
@@ -446,6 +453,7 @@ const TONS_MESSAGE = {
           :options="[
             { value: 'sms', label: `SMS — ${cliente.phone}` },
             { value: 'email', label: `E-mail — ${cliente.email || 'aucune adresse'}` },
+            { value: 'whatsapp', label: `WhatsApp — ${cliente.phone}` },
           ]"
         />
 
@@ -471,6 +479,22 @@ const TONS_MESSAGE = {
           <span v-if="apercu.unicode">
             · contient des accents, ce qui réduit la taille d’un SMS</span
           >
+        </p>
+
+        <p
+          v-if="messageForm.channel === 'whatsapp'"
+          class="rounded-lg border border-line bg-ivory/70 px-3 py-2 text-xs text-muted"
+        >
+          WhatsApp n’accepte un texte libre que dans les 24 h qui suivent un message de la
+          cliente. Au-delà, l’envoi est refusé et consigné en échec ; les messages automatiques
+          (confirmation, rappel…) utilisent des modèles approuvés.
+        </p>
+
+        <p
+          v-if="messageForm.channel === 'whatsapp' && cliente.whatsappOptIn === false"
+          class="rounded-lg border border-warn/25 bg-warn-bg px-3 py-2 text-xs text-warn"
+        >
+          Cette cliente a refusé WhatsApp : le message sera enregistré mais pas envoyé.
         </p>
 
         <p

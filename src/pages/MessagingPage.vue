@@ -13,7 +13,7 @@ import StatusBadge from '@/components/ui/StatusBadge.vue'
 import { useResource } from '@/composables/useResource'
 import { messaging as api, salon } from '@/services'
 import { useToastStore } from '@/stores/toasts'
-import { formatDateTime, toDateKey } from '@/utils/format'
+import { CHANNEL_LABELS, formatDateTime, toDateKey } from '@/utils/format'
 
 /**
  * Messagerie : SMS et e-mails aux clientes.
@@ -39,6 +39,10 @@ const { data: stats, reload: reloadStats } = useResource(api.stats, null)
 
 const smsPret = computed(() => Boolean(statut.value?.sms?.ready))
 const manques = computed(() => statut.value?.sms?.missing ?? [])
+const wa = computed(() => statut.value?.whatsapp ?? null)
+const waModeles = computed(() =>
+  Object.entries(wa.value?.templates ?? {}).filter(([, nom]) => nom).length,
+)
 
 const STATUTS = {
   sent: { label: 'Envoyé', tone: 'ok' },
@@ -61,6 +65,7 @@ const CANAUX = [
   { value: '', label: 'Tous les canaux' },
   { value: 'sms', label: 'SMS' },
   { value: 'email', label: 'E-mail' },
+  { value: 'whatsapp', label: 'WhatsApp' },
 ]
 
 const ETATS = [
@@ -420,6 +425,34 @@ const detail = ref(null)
       <span v-if="statut.sms.sender">Expéditeur : {{ statut.sms.sender }}</span>
       <span v-if="statut.sms.url" class="truncate">{{ statut.sms.url }}</span>
       <span>{{ statut.email.enabled ? 'E-mails actifs' : 'E-mails désactivés' }}</span>
+    </div>
+
+    <!-- ── État de WhatsApp (API officielle Meta) ── -->
+    <div
+      v-if="wa"
+      class="card flex flex-wrap items-center gap-x-5 gap-y-2 p-3.5 text-xs"
+      :class="wa.ready ? 'text-muted' : 'border-warn/30 bg-warn-bg/40 text-cocoa'"
+      role="status"
+    >
+      <span v-if="wa.ready" class="flex items-center gap-1.5 text-ok">
+        <AdminIcon name="check" class="h-3.5 w-3.5" />
+        WhatsApp prêt
+      </span>
+      <span v-else class="font-medium text-cocoa-dark">
+        {{ wa.enabled ? 'WhatsApp : configuration incomplète' : 'WhatsApp désactivé' }}
+      </span>
+      <span v-if="wa.ready">{{ waModeles }} modèle(s) approuvé(s) configuré(s)</span>
+      <span v-if="!wa.ready && wa.missing?.length" class="flex flex-wrap gap-1.5">
+        <code
+          v-for="manque in wa.missing"
+          :key="manque"
+          class="rounded-full bg-white px-2.5 py-0.5 font-mono text-[0.7rem] text-cocoa-dark"
+          >{{ manque }}</code
+        >
+      </span>
+      <span v-if="!wa.ready" class="text-muted">
+        Réglage dans le <code class="font-mono">.env</code> du serveur (WHATSAPP_*).
+      </span>
     </div>
 
     <!-- ── Compteurs ── -->
@@ -866,6 +899,7 @@ const detail = ref(null)
               >
                 <option value="sms">SMS</option>
                 <option value="email">E-mail</option>
+                <option value="whatsapp">WhatsApp</option>
               </select>
             </div>
           </div>
@@ -877,6 +911,14 @@ const detail = ref(null)
             :disabled="!modele.enabled"
             :aria-label="`Texte pour ${modele.label}`"
           />
+          <p v-if="modele.channel === 'whatsapp'" class="text-xs text-muted">
+            Par WhatsApp, le message envoyé est le modèle approuvé par Meta
+            <span v-if="wa?.templates?.[modele.evenement]">
+              (<code class="font-mono">{{ wa.templates[modele.evenement] }}</code>)</span
+            >
+            <span v-else class="text-warn"> — aucun modèle configuré : ce message ne partira pas</span>.
+            Le texte ci-dessus sert de trace dans le journal.
+          </p>
         </div>
 
         <!--
@@ -908,7 +950,7 @@ const detail = ref(null)
             :tone="statutDe(detail.status).tone"
           />
           <span class="text-xs text-muted">
-            {{ detail.channel === 'sms' ? 'SMS' : 'E-mail' }} · {{ detail.kindLabel }}
+            {{ CHANNEL_LABELS[detail.channel] ?? detail.channel }} · {{ detail.kindLabel }}
           </span>
         </div>
 

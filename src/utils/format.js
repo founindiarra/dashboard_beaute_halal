@@ -94,6 +94,7 @@ export function capitalize(value = '') {
  */
 export const APPOINTMENT_STATUSES = {
   pending: { label: 'En attente', tone: 'warn' },
+  contacted: { label: 'Contactée', tone: 'info' },
   confirmed: { label: 'Confirmé', tone: 'ok' },
   rejected: { label: 'Refusé', tone: 'danger' },
   arrived: { label: 'Cliente arrivée', tone: 'info' },
@@ -153,3 +154,58 @@ export const MESSAGE_STATUSES = {
   read: { label: 'Lu', tone: 'info' },
   archived: { label: 'Archivé', tone: 'neutral' },
 }
+
+/* ───────────── Demandes de rendez-vous du site (v3) ───────────── */
+
+export const REQUEST_STATUSES = {
+  pending: { label: 'Nouvelle', tone: 'warn' },
+  contacted: { label: 'Contactée', tone: 'info' },
+  confirmed: { label: 'Confirmée', tone: 'ok' },
+  rejected: { label: 'Déclinée', tone: 'danger' },
+  cancelled: { label: 'Annulée', tone: 'neutral' },
+  completed: { label: 'Terminée', tone: 'info' },
+}
+
+/** Statuts qui préviennent la cliente (même table que le backend). */
+export const REQUEST_NOTIFIED = ['contacted', 'confirmed', 'rejected']
+
+export const BESOIN_LABELS = { creation: 'Création complète', resserrage: 'Resserrage' }
+export const LOCK_TYPE_LABELS = {
+  traditionnels: 'Locks traditionnels',
+  small: 'Small locks',
+  micro: 'Micro-locks',
+}
+export const VOLUME_LABELS = {
+  XS: 'Très peu de volume',
+  S: 'Peu de volume',
+  M: 'Volume normal',
+  L: 'Beau volume',
+  XL: 'Volume très important',
+}
+export const FORMULE_LABELS = {
+  complet: 'Resserrage complet',
+  racines: 'Reprise de racines seule',
+  reparation: 'Réparation',
+}
+export const DELAI_LABELS = {
+  avance: 'En avance',
+  standard: 'Dans les temps',
+  retard: 'En retard',
+  'tres-retard': 'Très en retard',
+}
+export const ETAT_LABELS = { bon: 'Bon état', moyen: 'État moyen', important: 'Dégât important' }
+
+/** Numéro au format international sans « + » (225…), pour un lien WhatsApp. */
+export function whatsappNumber(phone = '') {
+  const digits = String(phone).replace(/\D/g, '')
+  if (!digits) return ''
+  if (digits.startsWith('00225')) return digits.slice(2)
+  if (digits.startsWith('225') && digits.length >= 11) return digits
+  return digits.length >= 11 ? digits : `225${digits}`
+}
+
+export const CHANNEL_LABELS = { sms: 'SMS', email: 'E-mail', whatsapp: 'WhatsApp' }
+
+/** Montant en FCFA : « 22 000 FCFA ». */
+export const formatFcfa = (value) =>
+  `${new Intl.NumberFormat('fr-FR').format(Number(value) || 0).replace(/\u202f|\u00a0/g, ' ')} FCFA`

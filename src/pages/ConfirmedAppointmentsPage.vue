@@ -38,8 +38,17 @@ const router = useRouter()
 const ouvrirFiche = (item, evenement) => {
   // Un clic parti d'un lien ou d'un bouton se débrouille tout seul.
   if (evenement?.target?.closest?.('a, button')) return
-  router.push({ name: 'operation', params: { id: item.id } })
+  router.push(ficheLink(item))
 }
+
+/**
+ * Une demande du site simplement « contactée » n'a ni heure ni prix : elle
+ * n'a pas encore de fiche de traitement. Elle se gère dans « Rendez-vous ».
+ */
+const ficheLink = (item) =>
+  item.status === 'contacted'
+    ? { name: 'appointments', query: { search: item.reference } }
+    : { name: 'operation', params: { id: item.id } }
 
 /**
  * Rendez-vous confirmés — la page de travail de la journée.
@@ -64,9 +73,9 @@ const { data: agents } = useResource(agentsApi.list, [])
 const filters = ref({
   search: '',
   status: '',
-  periode: 'today',
-  from: toDateKey(),
-  to: toDateKey(),
+  periode: 'all',
+  from: '',
+  to: '',
   officeId: '',
   agentId: '',
   page: 1,
@@ -74,7 +83,7 @@ const filters = ref({
 
 const STATUS_OPTIONS = [
   { value: '', label: 'Tous les statuts à traiter' },
-  ...OPERATION_STATUSES.map((value) => ({ value, label: statusOf(value).label })),
+  ...[...OPERATION_STATUSES, 'contacted'].map((value) => ({ value, label: statusOf(value).label })),
   { value: 'cancelled', label: 'Annulé' },
   { value: 'rejected', label: 'Refusé' },
   { value: 'no_show', label: 'Absente' },
@@ -145,7 +154,7 @@ const hasFilters = computed(
       filters.value.status ||
       filters.value.officeId ||
       filters.value.agentId,
-    ) || filters.value.periode !== 'today',
+    ) || filters.value.periode !== 'all',
 )
 
 const load = async () => {
@@ -204,11 +213,11 @@ watch(() => filters.value.page, load)
 load()
 
 const reinitialiser = () => {
-  const [from, to] = bornesDe('today')
+  const [from, to] = bornesDe('all')
   filters.value = {
     search: '',
     status: '',
-    periode: 'today',
+    periode: 'all',
     from,
     to,
     officeId: '',
@@ -320,12 +329,12 @@ const reinitialiser = () => {
                 @click="ouvrirFiche(item, $event)"
               >
                 <td class="whitespace-nowrap">
-                  <span class="block font-medium text-cocoa-dark">{{ item.time }}</span>
+                  <span class="block font-medium text-cocoa-dark">{{ item.timeToSet ? 'Heure à fixer' : item.time }}</span>
                   <span class="block text-xs text-muted">{{ formatDateShort(item.date) }}</span>
                 </td>
                 <td class="min-w-[10rem]">
                   <RouterLink
-                    :to="{ name: 'operation', params: { id: item.id } }"
+                    :to="ficheLink(item)"
                     class="flex items-center gap-2.5"
                   >
                     <span class="avatar">{{ initialsOf(item.customer) }}</span>
@@ -366,7 +375,7 @@ const reinitialiser = () => {
                 </td>
                 <td class="text-right">
                   <RouterLink
-                    :to="{ name: 'operation', params: { id: item.id } }"
+                    :to="ficheLink(item)"
                     class="inline-grid h-8 w-8 place-items-center rounded-md text-muted transition-colors hover:bg-ivory hover:text-cocoa-dark"
                     :aria-label="`Ouvrir la fiche de ${item.customer.firstName} ${item.customer.lastName}`"
                   >

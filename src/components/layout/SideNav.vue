@@ -20,6 +20,8 @@ defineProps({
   unreadMessages: { type: Number, default: 0 },
   /** Rendez-vous confirmés en attente de traitement. */
   toHandle: { type: Number, default: 0 },
+  /** Demandes du site v3 en attente de rappel. */
+  pendingRequests: { type: Number, default: 0 },
 })
 
 defineEmits(['navigate'])
@@ -39,7 +41,13 @@ const GROUPES = [
     title: 'Activité',
     links: [
       { name: 'dashboard', label: 'Tableau de bord', icon: 'dashboard' },
-      { name: 'appointments', label: 'Rendez-vous', icon: 'calendar', permission: 'appointments' },
+      {
+        name: 'appointments',
+        label: 'Rendez-vous',
+        icon: 'calendar',
+        badge: 'requests',
+        permission: 'appointments',
+      },
       {
         name: 'confirmed',
         label: 'Rendez-vous confirmés',
@@ -58,14 +66,16 @@ const GROUPES = [
     links: [
       { name: 'services', label: 'Prestations', icon: 'scissors', permission: 'catalog' },
       { name: 'categories', label: 'Catégories', icon: 'tag', permission: 'catalog' },
-      { name: 'gallery', label: 'Nos coiffures', icon: 'image', permission: 'catalog' },
       { name: 'testimonials', label: 'Avis clientes', icon: 'star', permission: 'catalog' },
+      { name: 'tarifs', label: 'Tarifs du site', icon: 'cash', permission: 'tarifs' },
     ],
   },
   {
     title: 'Gestion',
     links: [
       { name: 'accounting', label: 'Comptabilité', icon: 'cash', permission: 'accounting' },
+      // Version restreinte : chiffres d'aujourd'hui seulement. Masquée pour qui a déjà la comptabilité complète.
+      { name: 'accountingDay', label: 'Caisse du jour', icon: 'cash', permission: 'accounting_day', unless: 'accounting' },
     ],
   },
   {
@@ -79,7 +89,6 @@ const GROUPES = [
     title: 'Disponibilités',
     links: [
       { name: 'hours', label: 'Horaires', icon: 'clock', permission: 'schedule' },
-      { name: 'slots', label: 'Créneaux', icon: 'grid', permission: 'schedule' },
       { name: 'closures', label: 'Fermetures', icon: 'ban', permission: 'schedule' },
     ],
   },
@@ -96,7 +105,9 @@ const GROUPES = [
 const groups = computed(() =>
   GROUPES.map((groupe) => ({
     ...groupe,
-    links: groupe.links.filter((lien) => !lien.permission || auth.can(lien.permission)),
+    links: groupe.links.filter(
+      (lien) => (!lien.permission || auth.can(lien.permission)) && !(lien.unless && auth.can(lien.unless)),
+    ),
   })).filter((groupe) => groupe.links.length > 0),
 )
 
@@ -104,6 +115,7 @@ const groups = computed(() =>
 const badgeFor = (link, counts) => {
   if (link.badge === 'messages') return counts.unreadMessages
   if (link.badge === 'toHandle') return counts.toHandle
+  if (link.badge === 'requests') return counts.pendingRequests
   return 0
 }
 </script>
@@ -131,13 +143,13 @@ const badgeFor = (link, counts) => {
         <AdminIcon :name="link.icon" class="h-[1.1rem] w-[1.1rem] shrink-0" />
         <span class="min-w-0 flex-1 truncate">{{ link.label }}</span>
         <span
-          v-if="badgeFor(link, { unreadMessages, toHandle }) > 0"
+          v-if="badgeFor(link, { unreadMessages, toHandle, pendingRequests }) > 0"
           class="shrink-0 rounded-full bg-gold px-2 py-0.5 text-[0.62rem] font-medium text-cocoa-dark"
         >
           {{
-            badgeFor(link, { unreadMessages, toHandle }) > 99
+            badgeFor(link, { unreadMessages, toHandle, pendingRequests }) > 99
               ? '99+'
-              : badgeFor(link, { unreadMessages, toHandle })
+              : badgeFor(link, { unreadMessages, toHandle, pendingRequests })
           }}
         </span>
       </RouterLink>

@@ -56,6 +56,12 @@ export const appointments = {
   /** GET /admin/appointments/:id */
   find: (id) => http.get(`/admin/appointments/${id}`).then((r) => r.data),
 
+  /**
+   * POST /admin/appointments/:id/plan — « Confirmer et planifier » une demande du site :
+   * jour, heure et prix convenus avec la cliente (le prix est obligatoire).
+   */
+  plan: (id, payload) => http.post(`/admin/appointments/${id}/plan`, payload).then((r) => r.data),
+
   /** PATCH /admin/appointments/:id/status */
   setStatus: (id, status, { cancelReason = null, notify = true } = {}) =>
     http
@@ -88,6 +94,12 @@ export const services = {
   update: (id, payload) => http.patch(`/admin/services/${id}`, payload).then((r) => r.data),
   /** Renvoie 409 si des rendez-vous référencent la prestation. */
   remove: (id) => http.delete(`/admin/services/${id}`),
+}
+
+/** Les trois types de locks (catégories) : informations + photo. */
+export const lockTypes = {
+  list: () => http.get('/admin/lock-types').then((r) => r.data ?? []),
+  update: (id, payload) => http.patch(`/admin/lock-types/${id}`, payload).then((r) => r.data),
 }
 
 export const serviceCategories = {
@@ -161,6 +173,46 @@ export const messages = {
   find: (id) => http.get(`/admin/messages/${id}`).then((r) => r.data),
   setStatus: (id, status) => http.patch(`/admin/messages/${id}`, { status }).then((r) => r.data),
   remove: (id) => http.delete(`/admin/messages/${id}`),
+}
+
+/* ═══════════ Demandes de rendez-vous du site (sans créneau) ═══════════ */
+
+/**
+ * Demandes envoyées depuis le parcours « Rendez-vous » du site v3 : besoin,
+ * type de locks, jour souhaité — jamais d'heure. Le salon rappelle puis
+ * décide ; chaque changement de statut prévient la cliente (WhatsApp, selon
+ * les réglages de la messagerie).
+ */
+export const bookingRequests = {
+  /** Filtres : status, search, from, to, order, page, limit. */
+  list: (params = {}) =>
+    http.get('/admin/booking-requests', params).then((r) => ({ rows: r.data ?? [], meta: r.meta })),
+  find: (id) => http.get(`/admin/booking-requests/${id}`).then((r) => r.data),
+  /** { total, byStatus, newToday, upcomingWished } */
+  stats: () => http.get('/admin/booking-requests/stats').then((r) => r.data),
+  /** Corps : { status?, adminNote? }. */
+  update: (id, patch) => http.patch(`/admin/booking-requests/${id}`, patch).then((r) => r.data),
+  remove: (id) => http.delete(`/admin/booking-requests/${id}`),
+  /**
+   * « Confirmer et planifier » : la demande (un JOUR souhaité) devient un
+   * rendez-vous confirmé à l'heure que fixe le salon, et entre dans le suivi.
+   * Corps : { date, time, price?, durationMinutes?, officeId?, staffId? }.
+   * Renvoie { request, appointment, proforma }.
+   */
+  convert: (id, payload) =>
+    http.post(`/admin/booking-requests/${id}/convert`, payload).then((r) => r.data),
+}
+
+/* ═══════════════════ Catalogue tarifaire (site v3) ════════════════════ */
+
+export const tarifs = {
+  /** Lecture publique : la même grille que celle du site, ouverte à tout compte connecté. */
+  catalogue: () => http.get('/tarifs').then((r) => r.data),
+  get: () => http.get('/admin/tarifs').then((r) => r.data),
+  /** PUT : remplace tout le catalogue (le serveur le valide). */
+  save: (catalogue) => http.put('/admin/tarifs', catalogue).then((r) => r.data),
+  /** Remet la grille d'origine des documents du salon. */
+  reset: () => http.post('/admin/tarifs/reset', {}).then((r) => r.data),
 }
 
 /* ═══════════════════════ Agents / coiffeuses ══════════════════════════ */
@@ -330,6 +382,9 @@ export const customers = {
  * caisse tout seuls quand une cliente paie, depuis la fiche du rendez-vous.
  */
 export const accounting = {
+  /** Chiffres d'aujourd'hui seulement (droit « accounting_day » ou « accounting »). */
+  today: () => http.get('/admin/accounting/today').then((r) => r.data),
+
   summary: (params = {}) => http.get('/admin/accounting/summary', params).then((r) => r.data),
 
   accounts: () => http.get('/admin/accounting/accounts').then((r) => r.data ?? []),
@@ -365,6 +420,9 @@ export const messaging = {
 
   /** Essai vers un numéro : renvoie la réponse brute du fournisseur. */
   test: (payload) => http.post('/admin/messaging/test', payload).then((r) => r.data),
+  /** { to, template?, params?[], message? } — essai WhatsApp, renvoie le journal. */
+  testWhatsapp: (payload) =>
+    http.post('/admin/messaging/test-whatsapp', payload).then((r) => r.data),
 
   /** Longueur et nombre de segments — le salon paie au segment. */
   preview: (message) => http.post('/admin/messaging/preview', { message }).then((r) => r.data),

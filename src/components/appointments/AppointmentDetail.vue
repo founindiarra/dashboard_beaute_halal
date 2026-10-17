@@ -7,16 +7,25 @@ import BaseField from '@/components/ui/BaseField.vue'
 import BaseModal from '@/components/ui/BaseModal.vue'
 import ConfirmDialog from '@/components/ui/ConfirmDialog.vue'
 import StatusBadge from '@/components/ui/StatusBadge.vue'
+import PlanModal from '@/components/appointments/PlanModal.vue'
 import { appointments as api, documents as documentsApi } from '@/services'
 import { useToastStore } from '@/stores/toasts'
 import {
   APPOINTMENT_STATUSES,
+  BESOIN_LABELS,
+  DELAI_LABELS,
+  ETAT_LABELS,
+  FORMULE_LABELS,
+  LOCK_TYPE_LABELS,
   OPERATION_STATUSES,
+  VOLUME_LABELS,
   capitalize,
   formatDateLong,
   formatDateTime,
   formatDuration,
+  formatFcfa,
   formatPrice,
+  whatsappNumber,
 } from '@/utils/format'
 
 /**
@@ -51,13 +60,46 @@ const statusOf = (status) => APPOINTMENT_STATUSES[status] ?? { label: status, to
  * enregistrent un auteur et une heure, ce que seule la fiche de traitement
  * sait faire.
  */
+/** Rendez-vous né d'une demande du site (jour souhaité, heure et prix encore à convenir). */
+const fromSite = computed(() => props.appointment?.source === 'site-v3')
+const timeToSet = computed(() => Boolean(props.appointment?.timeToSet))
+const request = computed(() => props.appointment?.request ?? null)
+
 const decisions = computed(() =>
   Object.fromEntries(
-    Object.entries(APPOINTMENT_STATUSES).filter(
-      ([key]) => !['arrived', 'in_progress'].includes(key),
-    ),
+    Object.entries(APPOINTMENT_STATUSES)
+      .filter(([key]) => !['arrived', 'in_progress'].includes(key))
+      // « Contactée » n'a de sens que pour une demande du site.
+      .filter(([key]) => key !== 'contacted' || fromSite.value)
+      .map(([key, option]) =>
+        key === 'confirmed' && timeToSet.value
+          ? [key, { ...option, label: 'Confirmer et planifier' }]
+          : [key, option],
+      ),
   ),
 )
+
+const planOpen = ref(false)
+const onPlanned = (updated) => {
+  planOpen.value = false
+  emit('updated', updated)
+}
+
+const requestLines = computed(() => {
+  const r = request.value
+  if (!r) return []
+  const lines = [
+    ['Besoin', BESOIN_LABELS[r.besoin] ?? r.besoin],
+    ['Type de locks', LOCK_TYPE_LABELS[r.lockType] ?? r.lockType],
+    ['Volume', VOLUME_LABELS[r.volume] ?? r.volume],
+    ['Longueur', r.longueur],
+    ['Prestation', FORMULE_LABELS[r.formule] ?? r.formule],
+    ['Délai depuis la pose', DELAI_LABELS[r.delai] ?? r.delai],
+    ['État des locks', ETAT_LABELS[r.etat] ?? r.etat],
+    ['Inspiration', r.inspirationTitle],
+  ]
+  return lines.filter(([, value]) => value)
+})
 
 watch(
   () => props.appointment,
@@ -114,6 +156,11 @@ const traitable = computed(() => OPERATION_STATUSES.includes(props.appointment?.
 
 const changeStatus = async (status) => {
   if (!props.appointment || status === props.appointment.status) return
+  // Une demande du site se confirme en la planifiant : jour, heure et prix convenus.
+  if (status === 'confirmed' && timeToSet.value) {
+    planOpen.value = true
+    return
+  }
   statusBusy.value = status
   try {
     const updated = await api.setStatus(props.appointment.id, status, {
@@ -146,7 +193,7 @@ const save = async () => {
   try {
     const updated = await api.update(props.appointment.id, {
       date: form.value.date || undefined,
-      time: form.value.time || undefined,
+      time: timeToSet.value ? undefined : form.value.time || undefined,
       firstName: form.value.firstName,
       lastName: form.value.lastName,
       phone: form.value.phone,
@@ -227,8 +274,19 @@ const remove = async () => {
 
         <label class="flex items-center gap-2 text-xs text-muted">
           <input v-model="notify" type="checkbox" class="h-4 w-4 accent-[var(--color-gold)]" />
-          Prévenir la cliente par e-mail de cette décision
+          Prévenir la cliente de cette décision (WhatsApp ou e-mail)
         </label>
+
+        <a
+          v-if="fromSite && ['pending', 'contacted'].includes(appointment.status)"
+          :href="`https://wa.me/${whatsappNumber(appointment.customer.phone)}`"
+          target="_blank"
+          rel="noopener"
+          class="inline-flex w-fit items-center gap-2 rounded-lg border border-line bg-white px-3 py-1.5 text-xs font-medium text-cocoa-dark transition-colors hover:border-gold hover:text-gold"
+        >
+          <AdminIcon name="phone" class="h-3.5 w-3.5" />
+          Écrire à la cliente sur WhatsApp
+        </a>
 
         <!-- Proforma tout juste établi : proposé sur place, sans détour. -->
         <div
@@ -272,13 +330,16 @@ const remove = async () => {
           <div class="flex justify-between gap-3 sm:block">
             <dt class="text-muted sm:text-xs">Durée</dt>
             <dd class="text-right text-cocoa-dark sm:text-left">
-              {{ formatDuration(appointment.durationMinutes) }}
+              {{ timeToSet ? 'À fixer' : formatDuration(appointment.durationMinutes) }}
             </dd>
           </div>
           <div class="flex justify-between gap-3 sm:block">
             <dt class="text-muted sm:text-xs">Prix</dt>
             <dd class="text-right text-cocoa-dark sm:text-left">
-              {{ formatPrice(appointment.price, appointment.currency) }}
+              <template v-if="timeToSet">
+                {{ Number(appointment.price) > 0 ? `Estimation ${formatFcfa(appointment.price)} · ` : '' }}à convenir avec la cliente
+              </template>
+              <template v-else>{{ formatPrice(appointment.price, appointment.currency) }}</template>
             </dd>
           </div>
           <div class="flex justify-between gap-3 sm:block">
@@ -288,7 +349,13 @@ const remove = async () => {
             </dd>
           </div>
         </dl>
-        <p class="mt-3 text-xs text-muted">
+        <dl v-if="requestLines.length" class="mt-4 grid gap-x-6 gap-y-2 border-t border-line pt-4 text-sm sm:grid-cols-2">
+          <div v-for="[label, value] in requestLines" :key="label" class="flex justify-between gap-3 sm:block">
+            <dt class="text-muted sm:text-xs">{{ label }}</dt>
+            <dd class="text-right text-cocoa-dark sm:text-left">{{ value }}</dd>
+          </div>
+        </dl>
+        <p v-if="!fromSite" class="mt-3 text-xs text-muted">
           La durée et le prix sont figés par le serveur au moment de la réservation : ils ne sont
           pas modifiables ici.
         </p>
@@ -314,7 +381,7 @@ const remove = async () => {
           <div class="flex items-start gap-2.5 text-sm">
             <AdminIcon name="calendar" class="mt-0.5 h-4 w-4 shrink-0 text-gold" />
             <span class="text-cocoa-dark">
-              {{ capitalize(formatDateLong(appointment.date)) }} à {{ appointment.time }}
+              {{ capitalize(formatDateLong(appointment.date)) }}{{ timeToSet ? ' · heure à fixer' : ` à ${appointment.time}` }}
             </span>
           </div>
           <div class="flex items-start gap-2.5 text-sm">
@@ -339,7 +406,7 @@ const remove = async () => {
 
         <div v-else class="grid gap-3 sm:grid-cols-2">
           <BaseField v-model="form.date" label="Date" type="date" />
-          <BaseField v-model="form.time" label="Heure" type="time" />
+          <BaseField v-if="!timeToSet" v-model="form.time" label="Heure" type="time" />
           <BaseField v-model="form.firstName" label="Prénom" />
           <BaseField v-model="form.lastName" label="Nom" />
           <BaseField v-model="form.phone" label="Téléphone" type="tel" />
@@ -370,6 +437,8 @@ const remove = async () => {
       <BaseButton variant="secondary" @click="$emit('close')">Fermer</BaseButton>
     </template>
   </BaseModal>
+
+  <PlanModal :open="planOpen" :appointment="appointment" @close="planOpen = false" @planned="onPlanned" />
 
   <ConfirmDialog
     :open="confirmOpen"

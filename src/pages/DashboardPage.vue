@@ -8,9 +8,19 @@ import DataState from '@/components/ui/DataState.vue'
 import PageHeader from '@/components/ui/PageHeader.vue'
 import StatusBadge from '@/components/ui/StatusBadge.vue'
 import { useResource } from '@/composables/useResource'
-import { appointments as appointmentsApi, stats as statsApi } from '@/services'
+import {
+  appointments as appointmentsApi,
+  bookingRequests as requestsApi,
+  stats as statsApi,
+} from '@/services'
 import { useAuthStore } from '@/stores/auth'
-import { APPOINTMENT_STATUSES, addDays, formatDateShort, toDateKey } from '@/utils/format'
+import {
+  APPOINTMENT_STATUSES,
+  BESOIN_LABELS,
+  LOCK_TYPE_LABELS,
+  formatDateShort,
+  toDateKey,
+} from '@/utils/format'
 
 /**
  * Toutes les valeurs affichées ici viennent de l'API.
@@ -20,16 +30,51 @@ import { APPOINTMENT_STATUSES, addDays, formatDateShort, toDateKey } from '@/uti
 const auth = useAuthStore()
 const today = toDateKey()
 
-const { data: stats, loading, error, reload } = useResource(statsApi.get, null)
+// /admin/stats relève du droit « appointments » : sans lui, pas de compteurs.
+const { data: stats, loading, error, reload } = useResource(
+  () => (auth.can('appointments') ? statsApi.get() : Promise.resolve(null)),
+  null,
+)
 
 /**
  * Prochains rendez-vous : `order=asc` trie du plus proche au plus lointain.
  * Sans ce paramètre, la page 1 renverrait les rendez-vous les plus éloignés.
  */
 const loadUpcoming = () =>
-  appointmentsApi
+  !auth.can('appointments')
+    ? Promise.resolve([])
+    : appointmentsApi
     .list({ from: today, order: 'asc', limit: 8 })
     .then((result) => result.rows.filter((item) => item.status !== 'cancelled'))
+
+/**
+ * Logique du site : la cliente demande un JOUR, le salon la rappelle et fixe
+ * l'heure. Les demandes à traiter passent donc avant les rendez-vous.
+ * Sans le droit « appointments » (ou avec une API plus ancienne), la section
+ * disparaît au lieu d'afficher une erreur.
+ */
+const loadRequests = async () => {
+  if (!auth.can('appointments')) return { stats: null, pending: [] }
+  try {
+    const [requestStats, pending] = await Promise.all([
+      requestsApi.stats(),
+      requestsApi.list({ status: 'pending', order: 'asc', limit: 8 }),
+    ])
+    return { stats: requestStats, pending: pending.rows }
+  } catch {
+    return { stats: null, pending: [] }
+  }
+}
+const { data: requestsData, loading: requestsLoading, reload: reloadRequests } = useResource(
+  loadRequests,
+  { stats: null, pending: [] },
+)
+const requestStats = computed(() => requestsData.value?.stats)
+const pendingRequests = computed(() => requestsData.value?.pending ?? [])
+const requestSummary = (item) =>
+  [BESOIN_LABELS[item.besoin] ?? item.besoin, LOCK_TYPE_LABELS[item.lockType] ?? item.lockType]
+    .filter(Boolean)
+    .join(' · ')
 
 const {
   data: upcoming,
@@ -50,8 +95,24 @@ const defined = (tiles) => tiles.filter((tile) => tile.value !== undefined && ti
 
 const cards = computed(() => {
   const rdv = stats.value?.appointments
-  const messages = stats.value?.messages
+  const rs = requestStats.value
   return defined([
+    {
+      key: 'requests',
+      label: 'Nouvelles demandes du site',
+      value: rs?.byStatus?.pending,
+      icon: 'list',
+      tone: rs?.byStatus?.pending > 0 ? 'warn' : null,
+      to: { name: 'appointments', query: { status: 'pending' } },
+    },
+    {
+      key: 'contacted',
+      label: 'Contactées, à planifier',
+      value: rs?.byStatus?.contacted,
+      icon: 'phone',
+      tone: rs?.byStatus?.contacted > 0 ? 'warn' : null,
+      to: { name: 'appointments', query: { status: 'contacted' } },
+    },
     {
       key: 'today',
       label: 'Rendez-vous aujourd’hui',
@@ -60,27 +121,11 @@ const cards = computed(() => {
       to: { name: 'appointments', query: { from: today, to: today } },
     },
     {
-      key: 'upcoming',
-      label: 'Rendez-vous à venir',
-      value: rdv?.upcoming,
-      icon: 'arrow-right',
-      to: { name: 'appointments', query: { from: addDays(today, 1) } },
-    },
-    {
-      key: 'pending',
-      label: 'En attente de confirmation',
-      value: rdv?.pending,
-      icon: 'clock',
-      tone: rdv?.pending > 0 ? 'warn' : null,
-      to: { name: 'appointments', query: { status: 'pending' } },
-    },
-    {
-      key: 'messages',
-      label: 'Messages non lus',
-      value: messages?.unread,
-      icon: 'mail',
-      tone: messages?.unread > 0 ? 'warn' : null,
-      to: { name: 'messages', query: { status: 'new' } },
+      key: 'toHandle',
+      label: 'Rendez-vous confirmés à traiter',
+      value: rdv?.confirmed,
+      icon: 'check',
+      to: { name: 'confirmed' },
     },
   ])
 })
@@ -95,17 +140,41 @@ const secondary = computed(() => {
       ? `${catalog.testimonialsPublished} / ${catalog.testimonialsTotal}`
       : undefined
 
+  const messages = stats.value?.messages
+
   return defined([
-    { label: 'Prestations actives', value: catalog?.servicesActive, to: { name: 'services' } },
+    {
+      label: 'Messages non lus',
+      value: messages?.unread,
+      to: { name: 'messages', query: { status: 'new' } },
+    },
+    { label: 'Coiffures publiées', value: catalog?.servicesActive, to: { name: 'services' } },
     { label: 'Catégories', value: catalog?.categoriesActive, to: { name: 'categories' } },
-    { label: 'Coiffures publiées', value: catalog?.galleryActive, to: { name: 'gallery' } },
     { label: 'Avis publiés', value: avis, to: { name: 'testimonials' } },
     { label: 'Clientes distinctes', value: customers?.distinct, to: { name: 'appointments' } },
   ])
 })
 
+/** Pages ouvertes à la personne — son point de départ quand l'accueil n'a pas de chiffres. */
+const shortcuts = computed(() =>
+  [
+    ['customers', 'Clientes', 'customers'],
+    ['messaging', 'Messagerie', 'messaging'],
+    ['messages', 'Messages', 'messages'],
+    ['services', 'Prestations', 'catalog'],
+    ['tarifs', 'Tarifs du site', 'tarifs'],
+    ['hours', 'Horaires', 'schedule'],
+    ['agents', 'Agents', 'team'],
+    ['accounting', 'Comptabilité', 'accounting'],
+    ['salon', 'Paramètres du salon', 'salon'],
+  ]
+    .filter(([, , permission]) => auth.can(permission))
+    .map(([name, label]) => ({ name, label })),
+)
+
 const refreshAll = () => {
   reload()
+  reloadRequests()
   reloadUpcoming()
 }
 
@@ -182,9 +251,83 @@ const initialsOf = (customer) =>
       </div>
     </DataState>
 
+    <!-- ── Accès de la personne : ce que l'administratrice lui a ouvert ── -->
+    <section v-if="!auth.can('appointments') && shortcuts.length" class="card p-5">
+      <h2 class="mb-3 flex items-center gap-2.5 text-[0.98rem]">
+        <AdminIcon name="shield" class="h-[1.05rem] w-[1.05rem] text-gold" />
+        Vos accès
+      </h2>
+      <div class="flex flex-wrap gap-2">
+        <RouterLink
+          v-for="item in shortcuts"
+          :key="item.name"
+          :to="{ name: item.name }"
+          class="rounded-full border border-line px-3.5 py-1.5 text-sm text-cocoa transition-colors hover:border-gold hover:text-gold"
+        >
+          {{ item.label }}
+        </RouterLink>
+      </div>
+    </section>
+
+    <!-- ── Demandes du site à traiter : le premier geste de la journée ── -->
+    <section v-if="requestStats" class="card overflow-hidden">
+      <header class="flex items-center justify-between gap-3 px-5 py-4">
+        <h2 class="flex items-center gap-2.5 text-[0.98rem]">
+          <AdminIcon name="list" class="h-[1.05rem] w-[1.05rem] text-gold" />
+          Demandes à rappeler
+        </h2>
+        <RouterLink :to="{ name: 'appointments', query: { status: 'pending' } }" class="panel-link">
+          Tout voir
+          <AdminIcon name="arrow-right" class="h-3.5 w-3.5" />
+        </RouterLink>
+      </header>
+
+      <DataState
+        :loading="requestsLoading"
+        :empty="!pendingRequests.length"
+        loading-label="Chargement des demandes…"
+        empty-label="Aucune nouvelle demande."
+        empty-hint="Les demandes envoyées depuis le site apparaîtront ici."
+      >
+        <div class="table-scroll">
+          <table class="table">
+            <thead>
+              <tr>
+                <th class="pl-5">Cliente</th>
+                <th class="hidden sm:table-cell">Demande</th>
+                <th>Jour souhaité</th>
+                <th class="pr-5"><span class="sr-only">Ouvrir</span></th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="item in pendingRequests" :key="item.id">
+                <td class="pl-5">
+                  <span class="block text-cocoa-dark">{{ item.firstName }} {{ item.lastName }}</span>
+                  <span class="block text-xs text-muted">{{ item.phone }}</span>
+                </td>
+                <td class="hidden max-w-[15rem] truncate sm:table-cell">{{ requestSummary(item) }}</td>
+                <td class="whitespace-nowrap">
+                  {{ item.desiredDate ? formatDateShort(item.desiredDate) : '—' }}
+                </td>
+                <td class="pr-5 text-right">
+                  <RouterLink
+                    :to="{ name: 'appointments', query: { search: item.reference } }"
+                    class="panel-link"
+                  >
+                    Traiter
+                    <AdminIcon name="arrow-right" class="h-3.5 w-3.5" />
+                  </RouterLink>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </DataState>
+    </section>
+
     <!-- ── Rendez-vous à venir, et la volumétrie du contenu à leur droite ── -->
     <div class="grid gap-4 xl:grid-cols-[minmax(0,1fr)_20rem]">
-      <section class="card overflow-hidden">
+      <section v-if="auth.can('appointments')" class="card overflow-hidden">
         <header class="flex items-center justify-between gap-3 px-5 py-4">
           <h2 class="flex items-center gap-2.5 text-[0.98rem]">
             <AdminIcon name="calendar" class="h-[1.05rem] w-[1.05rem] text-gold" />
@@ -202,7 +345,7 @@ const initialsOf = (customer) =>
           :empty="!upcoming.length"
           loading-label="Chargement des rendez-vous…"
           empty-label="Aucun rendez-vous à venir."
-          empty-hint="Les nouvelles réservations du site apparaîtront ici."
+          empty-hint="Une demande confirmée et planifiée apparaît ici."
           @retry="reloadUpcoming"
         >
           <div class="table-scroll">

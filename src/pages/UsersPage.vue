@@ -48,14 +48,52 @@ const sorted = computed(() =>
  * délibéré, pas un défaut de formulaire.
  */
 const ROLES = [
-  { value: 'staff', label: 'Équipe — rendez-vous, encaissement, contenu' },
+  { value: 'staff', label: 'Agent — accès choisis ci-dessous' },
   { value: 'admin', label: 'Administratrice — tout, comptabilité et comptes compris' },
 ]
 
+/**
+ * Les accès qu'une administratrice peut accorder à un agent. Les noms sont
+ * ceux de l'API (`permissions` du backend) ; « comptes » n'y figure pas : qui
+ * gère les comptes pourrait se promouvoir administratrice.
+ */
+const ACCES = [
+  { key: 'appointments', label: 'Rendez-vous et demandes du site', hint: 'Contacter, confirmer, accueillir, encaisser, historique' },
+  { key: 'customers', label: 'Clientes', hint: 'Fiches et historique des visites' },
+  { key: 'messaging', label: 'Messagerie', hint: 'SMS, e-mails et WhatsApp aux clientes' },
+  { key: 'messages', label: 'Messages reçus', hint: 'Formulaire de contact du site' },
+  { key: 'catalog', label: 'Contenu', hint: 'Prestations (coiffures), catégories, avis' },
+  { key: 'tarifs', label: 'Tarifs du site', hint: 'Prix affichés sur le site' },
+  { key: 'schedule', label: 'Horaires', hint: 'Horaires et fermetures exceptionnelles' },
+  { key: 'team', label: 'Agents et bureaux', hint: 'Équipe, bureaux et salons' },
+  { key: 'salon', label: 'Paramètres du salon', hint: 'Coordonnées, adresse, réseaux' },
+  { key: 'accounting_day', label: 'Caisse du jour', hint: 'Chiffre d’affaires et dépenses d’aujourd’hui seulement' },
+  { key: 'accounting', label: 'Comptabilité complète', hint: 'Soldes, banque, tous les jours — sensible' },
+]
+
+/** Raccourcis : cochent d'un geste un ensemble d'accès courant. */
+const MODELES = [
+  { label: 'Accueil', keys: ['appointments', 'customers'] },
+  {
+    label: 'Tout sauf comptabilité',
+    keys: ACCES.filter((a) => !['accounting', 'accounting_day'].includes(a.key)).map((a) => a.key),
+  },
+  { label: 'Aucun', keys: [] },
+]
+
+const appliquerModele = (keys) => {
+  form.value.permissions = [...keys]
+}
+const basculer = (key) => {
+  const liste = new Set(form.value.permissions)
+  if (liste.has(key)) liste.delete(key)
+  else liste.add(key)
+  form.value.permissions = [...liste]
+}
+
 /** Ce que chaque rôle ouvre, dit en clair sous le sélecteur. */
 const DETAIL_ROLE = {
-  staff:
-    'Accède aux rendez-vous, à l’encaissement, aux prestations, aux coiffures, aux horaires et aux agents. N’accède ni à la comptabilité ni aux comptes.',
+  staff: 'Un agent n’ouvre que les parties que vous cochez. Il ne gère jamais les comptes.',
   admin: 'Accède à tout, y compris la comptabilité et la gestion des comptes.',
 }
 
@@ -72,7 +110,14 @@ const form = ref({})
 const openCreate = () => {
   editing.value = null
   formError.value = ''
-  form.value = { name: '', email: '', role: 'staff', password: '', isActive: true }
+  form.value = {
+    name: '',
+    email: '',
+    role: 'staff',
+    password: '',
+    isActive: true,
+    permissions: [...MODELES[0].keys],
+  }
   modalOpen.value = true
 }
 
@@ -86,6 +131,10 @@ const openEdit = (item) => {
     role: item.role,
     password: '',
     isActive: item.isActive,
+    // Liste accordée ; à défaut (compte ancien), les accès qu'il a réellement.
+    permissions: [...(item.grantedPermissions ?? item.permissions ?? [])].filter(
+      (key) => key !== 'users',
+    ),
   }
   modalOpen.value = true
 }
@@ -123,6 +172,7 @@ const save = async () => {
         role: form.value.role,
         isActive: Boolean(form.value.isActive),
       }
+      if (form.value.role === 'staff') payload.permissions = form.value.permissions
       if (form.value.password) payload.password = form.value.password
       await api.updateUser(editing.value.id, payload)
     } else {
@@ -131,6 +181,7 @@ const save = async () => {
         email,
         role: form.value.role,
         password: form.value.password,
+        ...(form.value.role === 'staff' ? { permissions: form.value.permissions } : {}),
       })
     }
 
@@ -209,7 +260,8 @@ const isSelf = (item) => item.id === auth.user?.id
               <tr>
                 <th>Utilisateur</th>
                 <th class="hidden md:table-cell">Rôle</th>
-                <th class="hidden lg:table-cell">Dernière connexion</th>
+                <th class="hidden lg:table-cell">Accès</th>
+                <th class="hidden xl:table-cell">Dernière connexion</th>
                 <th>État</th>
                 <th class="w-24"><span class="sr-only">Actions</span></th>
               </tr>
@@ -237,6 +289,9 @@ const isSelf = (item) => item.id === auth.user?.id
                   />
                 </td>
                 <td class="hidden text-xs text-muted lg:table-cell">
+                  {{ item.role === 'admin' ? 'Tous les accès' : `${item.permissions.length} accès` }}
+                </td>
+                <td class="hidden text-xs text-muted xl:table-cell">
                   {{ item.lastLoginAt ? formatDateTime(item.lastLoginAt) : 'Jamais connectée' }}
                 </td>
                 <td>
@@ -336,6 +391,49 @@ const isSelf = (item) => item.id === auth.user?.id
             aura lui aussi accès à la comptabilité et à la gestion des comptes.
           </span>
         </p>
+
+        <!-- ── Accès de l'agent : l'administratrice décide, case par case ── -->
+        <fieldset v-if="form.role === 'staff'" class="flex flex-col gap-2.5">
+          <legend class="mb-1 text-[0.82rem] font-medium text-cocoa-dark">Accès de l’agent</legend>
+          <div class="flex flex-wrap gap-1.5">
+            <button
+              v-for="modele in MODELES"
+              :key="modele.label"
+              type="button"
+              class="rounded-full border border-line px-3 py-1 text-xs text-cocoa transition-colors hover:border-gold hover:text-gold"
+              @click="appliquerModele(modele.keys)"
+            >
+              {{ modele.label }}
+            </button>
+          </div>
+          <div class="grid gap-2 sm:grid-cols-2">
+            <label
+              v-for="acces in ACCES"
+              :key="acces.key"
+              class="flex cursor-pointer items-start gap-2.5 rounded-lg border px-3 py-2 transition-colors"
+              :class="
+                form.permissions.includes(acces.key)
+                  ? 'border-gold/60 bg-ivory'
+                  : 'border-line hover:border-gold/40'
+              "
+            >
+              <input
+                type="checkbox"
+                class="mt-0.5 h-4 w-4 shrink-0 accent-[#9a6b3c]"
+                :checked="form.permissions.includes(acces.key)"
+                @change="basculer(acces.key)"
+              />
+              <span class="min-w-0">
+                <span class="block text-[0.82rem] text-cocoa-dark">{{ acces.label }}</span>
+                <span class="block text-xs text-muted">{{ acces.hint }}</span>
+              </span>
+            </label>
+          </div>
+          <p class="text-xs text-muted">
+            {{ form.permissions.length }} accès sur {{ ACCES.length }}. Les modifications
+            s’appliquent dès l’enregistrement, sans que l’agent ait à se reconnecter.
+          </p>
+        </fieldset>
 
         <BaseField
           v-model="form.password"

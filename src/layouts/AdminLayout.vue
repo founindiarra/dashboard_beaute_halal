@@ -6,7 +6,7 @@ import NotificationBell from '@/components/layout/NotificationBell.vue'
 import SideNav from '@/components/layout/SideNav.vue'
 import AdminIcon from '@/components/ui/AdminIcon.vue'
 import AdminLogo from '@/components/ui/AdminLogo.vue'
-import { stats as statsApi } from '@/services'
+import { bookingRequests as requestsApi, stats as statsApi } from '@/services'
 import { useAuthStore } from '@/stores/auth'
 
 /**
@@ -23,9 +23,12 @@ const unreadMessages = ref(0)
 const pendingAppointments = ref(0)
 /** Rendez-vous confirmés qui attendent encore d'être traités. */
 const toHandle = ref(0)
+/** Demandes du site v3 en attente de rappel. */
+const pendingRequests = ref(0)
 const drawer = ref(null)
 
-const publicSite = import.meta.env.VITE_PUBLIC_SITE_URL || ''
+// Le seul site relié à ce tableau de bord.
+const publicSite = import.meta.env.VITE_PUBLIC_SITE_URL || 'https://beaute-halal.aeemci-ce.ci'
 
 /** Date du jour, affichée à droite de la barre — repère utile pour un planning. */
 const today = new Date().toLocaleDateString('fr-FR', {
@@ -56,6 +59,13 @@ const initials = computed(() => {
  * Un compteur indisponible vaut zéro et n'empêche jamais la navigation.
  */
 const loadBadge = async () => {
+  // /admin/stats relève du droit « appointments » : sans lui, pas de compteurs.
+  if (!auth.can('appointments')) {
+    unreadMessages.value = 0
+    pendingAppointments.value = 0
+    toHandle.value = 0
+    return
+  }
   try {
     const data = await statsApi.get()
     unreadMessages.value = data?.messages?.unread ?? 0
@@ -68,8 +78,28 @@ const loadBadge = async () => {
   }
 }
 
-onMounted(loadBadge)
-watch(() => route.name, loadBadge)
+const loadRequestsBadge = async () => {
+  if (!auth.can('appointments')) {
+    pendingRequests.value = 0
+    return
+  }
+  try {
+    const data = await requestsApi.stats()
+    pendingRequests.value = data?.byStatus?.pending ?? 0
+  } catch {
+    // API plus ancienne (route absente) ou coupure : pas de pastille, pas d'erreur.
+    pendingRequests.value = 0
+  }
+}
+
+onMounted(() => {
+  loadBadge()
+  loadRequestsBadge()
+})
+watch(() => route.name, () => {
+  loadBadge()
+  loadRequestsBadge()
+})
 
 // Échap referme le tiroir mobile.
 const onKeydown = (event) => {
@@ -109,7 +139,11 @@ const logout = () => {
       </div>
 
       <div class="min-h-0 flex-1 overflow-y-auto px-2.5">
-        <SideNav :unread-messages="unreadMessages" :to-handle="toHandle" />
+        <SideNav
+          :unread-messages="unreadMessages"
+          :to-handle="toHandle"
+          :pending-requests="pendingRequests"
+        />
       </div>
 
       <!--
@@ -259,6 +293,7 @@ const logout = () => {
             <SideNav
               :unread-messages="unreadMessages"
               :to-handle="toHandle"
+              :pending-requests="pendingRequests"
               @navigate="menuOpen = false"
             />
           </div>

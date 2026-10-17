@@ -13,15 +13,23 @@ import PageHeader from '@/components/ui/PageHeader.vue'
 import SearchInput from '@/components/ui/SearchInput.vue'
 import StatusBadge from '@/components/ui/StatusBadge.vue'
 import { useResource } from '@/composables/useResource'
-import { serviceCategories, services as api } from '@/services'
+import { lockTypes, services as api } from '@/services'
 import { useToastStore } from '@/stores/toasts'
-import { formatDuration, formatPrice } from '@/utils/format'
 
 const toasts = useToastStore()
 
+/**
+ * Une prestation EST une coiffure du salon (celles de la page « Nos coiffures »
+ * du site). Sa catégorie est l'un des trois types de locks ; aucun prix ni
+ * horaire ici : le prix se fixe à la confirmation du rendez-vous.
+ */
 const load = async () => {
-  const [items, categories] = await Promise.all([api.list(), serviceCategories.list()])
-  return { items, categories }
+  const [items, types] = await Promise.all([api.list(), lockTypes.list()])
+  // `categories` = les trois types, avec l'identifiant de catégorie attendu par l'API.
+  const categories = types.filter((t) => t.categoryId).map((t) => ({ id: t.categoryId, name: t.name }))
+  const ids = new Set(categories.map((c) => c.id))
+  // La prestation technique des demandes du site n'est pas une coiffure : on ne l'affiche pas.
+  return { items: items.filter((i) => ids.has(i.category.id)), categories }
 }
 
 const { data, loading, error, reload } = useResource(load, { items: [], categories: [] })
@@ -30,7 +38,7 @@ const search = ref('')
 const categoryFilter = ref('')
 
 const categoryOptions = computed(() => [
-  { value: '', label: 'Toutes les catégories' },
+  { value: '', label: 'Tous les types' },
   ...(data.value?.categories ?? []).map((c) => ({ value: String(c.id), label: c.name })),
 ])
 
@@ -56,9 +64,6 @@ const emptyForm = () => ({
   categoryId: data.value?.categories?.[0]?.id ?? '',
   name: '',
   description: '',
-  durationMinutes: 60,
-  price: 0,
-  currency: 'FCFA',
   imageUrl: '',
   isFeatured: false,
   isActive: true,
@@ -79,9 +84,6 @@ const openEdit = (item) => {
     categoryId: item.category.id,
     name: item.name,
     description: item.description ?? '',
-    durationMinutes: item.durationMinutes,
-    price: item.price,
-    currency: item.currency,
     // On renvoie le chemin relatif d'origine, pas l'URL absolue reconstruite
     // par l'API, pour ne pas figer le domaine dans la base.
     imageUrl: item.imageUrl ? String(item.imageUrl).replace(/^https?:\/\/[^/]+/, '') : '',
@@ -109,9 +111,6 @@ const save = async () => {
       categoryId: Number(form.value.categoryId),
       name: form.value.name.trim(),
       description: form.value.description?.trim() || null,
-      durationMinutes: Number(form.value.durationMinutes),
-      price: Number(form.value.price),
-      currency: form.value.currency || 'FCFA',
       imageUrl: form.value.imageUrl || null,
       isFeatured: Boolean(form.value.isFeatured),
       isActive: Boolean(form.value.isActive),
@@ -123,7 +122,7 @@ const save = async () => {
 
     modalOpen.value = false
     await reload()
-    toasts.success(editing.value ? 'Prestation mise à jour.' : 'Prestation créée.')
+    toasts.success(editing.value ? 'Coiffure mise à jour.' : 'Coiffure enregistrée.')
   } catch (caught) {
     formError.value = caught?.message || 'Enregistrement impossible.'
   } finally {
@@ -136,7 +135,7 @@ const toggleActive = async (item) => {
   try {
     await api.update(item.id, { isActive: !item.isActive })
     await reload()
-    toasts.success(item.isActive ? 'Prestation désactivée.' : 'Prestation activée.')
+    toasts.success(item.isActive ? 'Coiffure masquée du site.' : 'Coiffure visible sur le site.')
   } catch (caught) {
     toasts.error(caught?.message || 'Modification impossible.')
   }
@@ -150,7 +149,7 @@ const remove = async () => {
     await api.remove(confirmTarget.value.id)
     confirmTarget.value = null
     await reload()
-    toasts.success('Prestation supprimée.')
+    toasts.success('Coiffure supprimée.')
   } catch (caught) {
     // 409 : des rendez-vous référencent la prestation. Le message vient de l'API.
     toasts.error(caught?.message || 'Suppression impossible.')
@@ -163,11 +162,14 @@ const remove = async () => {
 
 <template>
   <div class="flex flex-col gap-5">
-    <PageHeader title="Prestations" subtitle="Le catalogue proposé sur le site public.">
+    <PageHeader
+      title="Prestations"
+      subtitle="Les coiffures du salon : elles alimentent la page « Nos coiffures » du site. Le prix se fixe à la confirmation du rendez-vous."
+    >
       <template #actions>
         <BaseButton size="sm" @click="openCreate">
           <AdminIcon name="plus" class="h-3.5 w-3.5" />
-          Nouvelle prestation
+          Nouvelle coiffure
         </BaseButton>
       </template>
     </PageHeader>
@@ -175,7 +177,7 @@ const remove = async () => {
     <div class="card flex flex-col gap-3 p-3.5 sm:flex-row sm:items-end">
       <SearchInput v-model="search" placeholder="Nom, description…" />
       <div class="sm:w-56">
-        <BaseField v-model="categoryFilter" label="Catégorie" :options="categoryOptions" />
+        <BaseField v-model="categoryFilter" label="Type de locks" :options="categoryOptions" />
       </div>
     </div>
 
@@ -187,8 +189,8 @@ const remove = async () => {
         loading-label="Chargement des prestations…"
         :empty-label="
           search || categoryFilter
-            ? 'Aucune prestation ne correspond.'
-            : 'Aucune prestation enregistrée.'
+            ? 'Aucune coiffure ne correspond.'
+            : 'Aucune coiffure enregistrée.'
         "
         @retry="reload"
       >
@@ -197,10 +199,8 @@ const remove = async () => {
             <thead>
               <tr>
                 <th class="w-14"><span class="sr-only">Image</span></th>
-                <th>Prestation</th>
-                <th class="hidden md:table-cell">Catégorie</th>
-                <th class="hidden sm:table-cell">Durée</th>
-                <th>Prix</th>
+                <th>Coiffure</th>
+                <th class="hidden sm:table-cell">Type de locks</th>
                 <th>Statut</th>
                 <th class="w-24 text-right">Actions</th>
               </tr>
@@ -226,11 +226,7 @@ const remove = async () => {
                     {{ item.description || '—' }}
                   </span>
                 </td>
-                <td class="hidden md:table-cell">{{ item.category.name }}</td>
-                <td class="hidden whitespace-nowrap sm:table-cell">
-                  {{ formatDuration(item.durationMinutes) }}
-                </td>
-                <td class="whitespace-nowrap">{{ formatPrice(item.price, item.currency) }}</td>
+                <td class="hidden sm:table-cell">{{ item.category.name }}</td>
                 <td>
                   <div class="flex flex-wrap items-center gap-1">
                     <StatusBadge
@@ -281,7 +277,7 @@ const remove = async () => {
     <!-- ── Formulaire ── -->
     <BaseModal
       :open="modalOpen"
-      :title="editing ? 'Modifier la prestation' : 'Nouvelle prestation'"
+      :title="editing ? 'Modifier la coiffure' : 'Nouvelle coiffure'"
       :subtitle="editing ? editing.name : ''"
       @close="modalOpen = false"
     >
@@ -295,23 +291,13 @@ const remove = async () => {
         </p>
 
         <div class="grid gap-4 sm:grid-cols-2">
-          <BaseField v-model="form.name" label="Nom" required placeholder="Création de locks" />
+          <BaseField v-model="form.name" label="Nom de la coiffure" required placeholder="Locks longues soignées" />
           <BaseField
             v-model="form.categoryId"
-            label="Catégorie"
+            label="Type de locks"
             required
             :options="(data?.categories ?? []).map((c) => ({ value: c.id, label: c.name }))"
           />
-          <BaseField
-            v-model="form.durationMinutes"
-            label="Durée (minutes)"
-            type="number"
-            :min="5"
-            :max="1440"
-            required
-          />
-          <BaseField v-model="form.price" label="Prix" type="number" :min="0" required />
-          <BaseField v-model="form.currency" label="Devise" placeholder="FCFA" />
           <BaseField
             v-model="form.position"
             label="Position"
@@ -326,7 +312,7 @@ const remove = async () => {
           label="Description"
           textarea
           :rows="3"
-          placeholder="Visible sur la fiche de la prestation."
+          placeholder="Visible sur la page Nos coiffures, à côté de la photo."
         />
 
         <ImageField v-model="form.imageUrl" label="Photo" @error="formError = $event" />
@@ -334,13 +320,13 @@ const remove = async () => {
         <div class="grid gap-3 sm:grid-cols-2">
           <BaseToggle
             v-model="form.isActive"
-            label="Prestation active"
-            hint="Visible et réservable sur le site public."
+            label="Visible sur le site"
+            hint="Apparaît dans « Nos coiffures » (une photo est nécessaire)."
           />
           <BaseToggle
             v-model="form.isFeatured"
             label="Mise en avant"
-            hint="Apparaît sur la page d’accueil."
+            hint="Apparaît sur la page d’accueil du site."
           />
         </div>
       </div>
@@ -350,7 +336,7 @@ const remove = async () => {
           Annuler
         </BaseButton>
         <BaseButton :loading="busy" @click="save">
-          {{ editing ? 'Enregistrer' : 'Créer la prestation' }}
+          {{ editing ? 'Enregistrer' : 'Enregistrer la coiffure' }}
         </BaseButton>
       </template>
     </BaseModal>
@@ -358,7 +344,7 @@ const remove = async () => {
     <ConfirmDialog
       :open="Boolean(confirmTarget)"
       :busy="busy"
-      title="Supprimer la prestation"
+      title="Supprimer la coiffure"
       :message="`« ${confirmTarget?.name} » sera supprimée. Si des rendez-vous l’utilisent, la suppression sera refusée : désactivez-la plutôt.`"
       @confirm="remove"
       @close="confirmTarget = null"
