@@ -15,7 +15,7 @@ const props = defineProps({
 })
 
 const VARIANTS = {
-  primary: 'bg-cocoa-dark text-cream border-cocoa-dark hover:bg-cocoa hover:border-cocoa',
+  primary: 'bg-btn text-cream border-cocoa-dark hover:brightness-110',
   secondary: 'bg-surface text-cocoa-dark border-line hover:border-gold hover:text-gold',
   ghost: 'bg-transparent text-cocoa border-transparent hover:bg-ivory',
   subtle: 'bg-ivory text-cocoa-dark border-transparent hover:bg-sand',

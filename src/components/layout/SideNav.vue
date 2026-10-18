@@ -88,6 +88,7 @@ const GROUPES = [
   {
     title: 'Disponibilités',
     links: [
+      { name: 'calendar', label: 'Calendrier', icon: 'calendar', permission: 'appointments' },
       { name: 'hours', label: 'Horaires', icon: 'clock', permission: 'schedule' },
       { name: 'closures', label: 'Fermetures', icon: 'ban', permission: 'schedule' },
     ],

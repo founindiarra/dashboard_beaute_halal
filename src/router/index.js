@@ -77,6 +77,12 @@ const routes = [
     meta: { title: 'Avis clientes', permission: 'catalog' },
   },
   {
+    path: '/calendrier',
+    name: 'calendar',
+    component: () => import('@/pages/CalendarPage.vue'),
+    meta: { title: 'Calendrier des jours', permission: 'appointments' },
+  },
+  {
     path: '/horaires',
     name: 'hours',
     component: () => import('@/pages/HoursPage.vue'),

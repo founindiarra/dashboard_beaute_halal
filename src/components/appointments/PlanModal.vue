@@ -35,7 +35,7 @@ watch(
     const a = props.appointment
     form.value = {
       date: a.date || toDateKey(),
-      time: '',
+      time: a.request?.desiredTime || '',
       price: Number(a.price) > 0 ? String(Math.round(Number(a.price))) : '',
       duration: '',
       officeId: '',

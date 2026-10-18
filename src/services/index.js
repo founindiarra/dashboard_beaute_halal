@@ -151,6 +151,9 @@ export const schedule = {
   updateSlot: (id, payload) => http.patch(`/admin/time-slots/${id}`, payload).then((r) => r.data),
   removeSlot: (id) => http.delete(`/admin/time-slots/${id}`),
 
+  /** GET /availability/days — jours réservables, tels que le site public les voit. */
+  days: (from, to) => http.get('/availability/days', { from, to }).then((r) => r.data ?? { days: [] }),
+
   closures: () => http.get('/admin/closures').then((r) => r.data ?? []),
   createClosure: (payload) => http.post('/admin/closures', payload).then((r) => r.data),
   removeClosure: (id) => http.delete(`/admin/closures/${id}`),

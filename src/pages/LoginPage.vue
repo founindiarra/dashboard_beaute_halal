@@ -53,16 +53,12 @@ const submit = async () => {
     et tout ce qui identifie l'application — logo, nom, « Connexion » — vit
     à l'intérieur de cette carte plutôt que de flotter autour.
   -->
-  <div class="flex min-h-dvh items-center justify-center bg-cocoa-dark px-5 py-10 sm:px-8">
+  <div class="flex min-h-dvh items-center justify-center bg-sidebar px-5 py-10 sm:px-8">
     <div class="w-full max-w-sm">
       <div class="card p-6 sm:p-7">
         <!-- Marque et titre, à l'intérieur du formulaire -->
         <div class="flex flex-col items-center gap-3 text-center">
-          <span
-            class="grid h-14 w-14 place-items-center rounded-full border border-gold/40 bg-ivory"
-          >
-            <AdminLogo class="h-7 w-auto text-gold" />
-          </span>
+          <AdminLogo class="h-14 w-14" />
           <span class="flex flex-col gap-0.5 leading-tight">
             <span class="font-display text-2xl text-cocoa-dark">Beauté Halal</span>
             <span class="text-[0.62rem] uppercase tracking-[0.22em] text-gold">Administration</span>

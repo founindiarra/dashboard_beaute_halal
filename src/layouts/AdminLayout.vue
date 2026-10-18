@@ -122,14 +122,10 @@ const logout = () => {
   <div class="min-h-dvh lg:flex">
     <!-- ── Barre latérale, écrans larges ── -->
     <aside
-      class="hidden w-[16.5rem] shrink-0 flex-col bg-cocoa-dark lg:sticky lg:top-0 lg:flex lg:h-dvh"
+      class="hidden w-[16.5rem] shrink-0 flex-col bg-sidebar lg:sticky lg:top-0 lg:flex lg:h-dvh"
     >
       <div class="flex items-center gap-3 px-4 pb-4 pt-5">
-        <span
-          class="grid h-10 w-10 shrink-0 place-items-center rounded-full border border-gold-soft/50 bg-cocoa"
-        >
-          <AdminLogo class="h-[1.25rem] w-auto text-gold-soft" />
-        </span>
+        <AdminLogo ring class="h-10 w-10" />
         <span class="flex min-w-0 flex-col leading-tight">
           <span class="truncate font-display text-[1.05rem] text-cream">Beauté Halal</span>
           <span class="truncate text-[0.63rem] text-cream/45">
@@ -268,15 +264,11 @@ const logout = () => {
           role="dialog"
           aria-modal="true"
           aria-label="Navigation"
-          class="relative flex h-full w-[17rem] max-w-[85vw] flex-col bg-cocoa-dark"
+          class="relative flex h-full w-[17rem] max-w-[85vw] flex-col bg-sidebar"
         >
           <div class="flex items-center justify-between gap-2 border-b border-cream/10 px-4 py-3">
             <span class="flex min-w-0 items-center gap-2.5">
-              <span
-                class="grid h-9 w-9 shrink-0 place-items-center rounded-full border border-gold-soft/50 bg-cocoa"
-              >
-                <AdminLogo class="h-[1.15rem] w-auto text-gold-soft" />
-              </span>
+              <AdminLogo ring class="h-9 w-9" />
               <span class="truncate font-display text-base text-cream">Beauté Halal</span>
             </span>
             <button

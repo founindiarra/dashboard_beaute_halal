@@ -381,7 +381,7 @@ const remove = async () => {
           <div class="flex items-start gap-2.5 text-sm">
             <AdminIcon name="calendar" class="mt-0.5 h-4 w-4 shrink-0 text-gold" />
             <span class="text-cocoa-dark">
-              {{ capitalize(formatDateLong(appointment.date)) }}{{ timeToSet ? ' · heure à fixer' : ` à ${appointment.time}` }}
+              {{ capitalize(formatDateLong(appointment.date)) }}{{ timeToSet ? (appointment.request?.desiredTime ? ` · créneau souhaité : ${appointment.request.desiredTime}` : ' · heure à fixer') : ` à ${appointment.time}` }}
             </span>
           </div>
           <div class="flex items-start gap-2.5 text-sm">

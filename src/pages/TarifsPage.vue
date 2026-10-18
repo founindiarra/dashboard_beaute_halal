@@ -31,6 +31,7 @@ const load = async () => {
   error.value = null
   try {
     catalogue.value = await api.get()
+    ensure()
     dirty.value = false
   } catch (caught) {
     error.value = caught?.message || 'Chargement impossible.'
@@ -69,6 +70,34 @@ const setRepairFrom = (type, value) => {
   touch()
 }
 
+const addGoodToKnow = () => {
+  catalogue.value.goodToKnow ??= []
+  catalogue.value.goodToKnow.push({ title: '', text: '' })
+  touch()
+}
+const removeGoodToKnow = (index) => {
+  catalogue.value.goodToKnow.splice(index, 1)
+  touch()
+}
+const moveGoodToKnow = (index, delta) => {
+  const list = catalogue.value.goodToKnow
+  const target = index + delta
+  if (target < 0 || target >= list.length) return
+  ;[list[index], list[target]] = [list[target], list[index]]
+  touch()
+}
+/** Les champs de texte optionnels peuvent manquer sur un catalogue ancien : on les crée à la saisie. */
+const ensure = () => {
+  const c = catalogue.value
+  if (!c) return
+  c.brand ??= { tagline: '', intro: '' }
+  c.whatsapp ??= { display: '', number: '' }
+  c.engagement ??= ''
+  c.videoAdvice ??= ''
+  c.goodToKnow ??= []
+  for (const key of ['formules', 'besoins', 'prestations', 'longueurs']) c[key] ??= []
+}
+
 const save = async () => {
   saving.value = true
   try {
@@ -90,6 +119,7 @@ const reset = async () => {
   resetting.value = true
   try {
     catalogue.value = await api.reset()
+    ensure()
     dirty.value = false
     resetOpen.value = false
     toasts.success('Grille d’origine rétablie.')
@@ -130,6 +160,22 @@ const reset = async () => {
             <h2 class="font-display text-xl text-cocoa-dark">{{ type.name }}</h2>
             <p class="text-xs text-muted">{{ type.size }} · {{ type.rhythm }}</p>
           </header>
+
+          <details class="rounded-xl border border-line bg-ivory/40 px-3 py-2">
+            <summary class="cursor-pointer text-sm text-cocoa-dark">Présentation sur le site</summary>
+            <div class="mt-3 grid gap-3 sm:grid-cols-2">
+              <BaseField v-model="type.name" label="Nom du type" @update:model-value="touch" />
+              <BaseField v-model="type.tagline" label="Accroche" hint="Une phrase courte, sous le nom." @update:model-value="touch" />
+              <BaseField v-model="type.size" label="Taille des locks" @update:model-value="touch" />
+              <BaseField v-model="type.rhythm" label="Rythme de resserrage" @update:model-value="touch" />
+              <div class="sm:col-span-2">
+                <BaseField v-model="type.description" label="Description" textarea :rows="3" @update:model-value="touch" />
+              </div>
+              <div class="sm:col-span-2">
+                <BaseField v-model="type.image" label="Photo (adresse ou chemin /uploads/…)" @update:model-value="touch" />
+              </div>
+            </div>
+          </details>
 
           <div>
             <h3 class="mb-2 text-xs uppercase tracking-[0.1em] text-muted">Prix par volume (FCFA)</h3>
@@ -240,6 +286,91 @@ const reset = async () => {
           <BaseField v-model="catalogue.consultation.nouvelle" label="Nouvelle cliente" @update:model-value="touch" />
           <BaseField v-model="catalogue.consultation.ancienne" label="Ancienne cliente" @update:model-value="touch" />
           <BaseField v-model="catalogue.consultation.final" label="Tarif final" @update:model-value="touch" />
+        </section>
+
+
+        <section class="card flex flex-col gap-3 p-4">
+          <h2 class="font-display text-xl text-cocoa-dark">Textes d’accueil et contact</h2>
+          <BaseField v-model="catalogue.brand.tagline" label="Accroche du salon" @update:model-value="touch" />
+          <BaseField v-model="catalogue.brand.intro" label="Présentation" textarea :rows="3" @update:model-value="touch" />
+          <div class="grid gap-3 sm:grid-cols-2">
+            <BaseField v-model="catalogue.whatsapp.display" label="WhatsApp : numéro affiché" hint="Ex. +225 05 66 15 74 32" @update:model-value="touch" />
+            <BaseField v-model="catalogue.whatsapp.number" label="WhatsApp : numéro du lien" hint="Chiffres seuls, indicatif compris (8 à 15)." @update:model-value="touch" />
+          </div>
+          <BaseField v-model="catalogue.engagement" label="Engagement du salon" textarea :rows="2" @update:model-value="touch" />
+          <BaseField v-model="catalogue.videoAdvice" label="Conseil vidéo (formulaire de rendez-vous)" textarea :rows="2" @update:model-value="touch" />
+        </section>
+
+        <section class="card flex flex-col gap-4 p-4">
+          <h2 class="font-display text-xl text-cocoa-dark">Volumes et longueurs</h2>
+          <p class="text-xs text-muted">Les prix de chaque volume se règlent dans les tableaux des types ci-dessus.</p>
+          <ul class="flex flex-col gap-3">
+            <li v-for="volume in catalogue.volumes" :key="volume.id" class="grid gap-3 sm:grid-cols-[4rem_1fr_2fr]">
+              <span class="pt-2 font-display text-lg text-cocoa-dark">{{ volume.id }}</span>
+              <BaseField v-model="volume.label" label="Libellé" @update:model-value="touch" />
+              <BaseField v-model="volume.hint" label="Aide" @update:model-value="touch" />
+            </li>
+          </ul>
+          <ul class="flex flex-col gap-3 border-t border-line pt-3">
+            <li v-for="(longueur, i) in catalogue.longueurs" :key="i" class="grid gap-3 sm:grid-cols-2">
+              <BaseField v-model="longueur.label" label="Longueur" @update:model-value="touch" />
+              <BaseField v-model="longueur.hint" label="Aide" @update:model-value="touch" />
+            </li>
+          </ul>
+        </section>
+
+        <section class="card flex flex-col gap-4 p-4">
+          <h2 class="font-display text-xl text-cocoa-dark">Formules de resserrage</h2>
+          <ul class="flex flex-col gap-4">
+            <li v-for="formule in catalogue.formules" :key="formule.id" class="grid gap-3 sm:grid-cols-3">
+              <BaseField v-model="formule.label" label="Nom complet" @update:model-value="touch" />
+              <BaseField v-model="formule.short" label="Nom court" @update:model-value="touch" />
+              <BaseField v-model="formule.detail" label="Détail" @update:model-value="touch" />
+              <div class="sm:col-span-3">
+                <BaseField v-model="formule.help" label="Explication" textarea :rows="2" @update:model-value="touch" />
+              </div>
+            </li>
+          </ul>
+        </section>
+
+        <section class="card flex flex-col gap-4 p-4">
+          <h2 class="font-display text-xl text-cocoa-dark">Besoins proposés à la réservation</h2>
+          <ul class="flex flex-col gap-4">
+            <li v-for="besoin in catalogue.besoins" :key="besoin.id" class="flex flex-col gap-3">
+              <BaseField v-model="besoin.name" label="Nom" @update:model-value="touch" />
+              <BaseField v-model="besoin.text" label="Texte" textarea :rows="2" @update:model-value="touch" />
+              <BaseField v-model="besoin.note" label="Note sous le texte" textarea :rows="2" @update:model-value="touch" />
+            </li>
+          </ul>
+        </section>
+
+        <section class="card flex flex-col gap-4 p-4">
+          <h2 class="font-display text-xl text-cocoa-dark">Prestations de la page Tarifs</h2>
+          <ul class="flex flex-col gap-4">
+            <li v-for="prestation in catalogue.prestations" :key="prestation.id" class="flex flex-col gap-3">
+              <BaseField v-model="prestation.name" label="Nom" @update:model-value="touch" />
+              <BaseField v-model="prestation.description" label="Description" textarea :rows="2" @update:model-value="touch" />
+            </li>
+          </ul>
+        </section>
+
+        <section class="card flex flex-col gap-4 p-4">
+          <header class="flex items-center justify-between gap-3">
+            <h2 class="font-display text-xl text-cocoa-dark">À savoir avant de venir</h2>
+            <BaseButton variant="secondary" @click="addGoodToKnow">Ajouter un point</BaseButton>
+          </header>
+          <p v-if="!catalogue.goodToKnow.length" class="text-sm text-muted">Aucun point : la rubrique reste vide sur le site.</p>
+          <ul class="flex flex-col gap-4">
+            <li v-for="(item, i) in catalogue.goodToKnow" :key="i" class="flex flex-col gap-3 rounded-xl border border-line p-3">
+              <BaseField v-model="item.title" label="Titre" @update:model-value="touch" />
+              <BaseField v-model="item.text" label="Texte" textarea :rows="3" @update:model-value="touch" />
+              <div class="flex gap-2">
+                <BaseButton variant="subtle" :disabled="i === 0" @click="moveGoodToKnow(i, -1)">Monter</BaseButton>
+                <BaseButton variant="subtle" :disabled="i === catalogue.goodToKnow.length - 1" @click="moveGoodToKnow(i, 1)">Descendre</BaseButton>
+                <BaseButton variant="danger" @click="removeGoodToKnow(i)">Retirer</BaseButton>
+              </div>
+            </li>
+          </ul>
         </section>
 
         <div class="flex justify-end">

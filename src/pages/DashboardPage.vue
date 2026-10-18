@@ -240,9 +240,9 @@ const initialsOf = (customer) =>
           travail dans l'identité du salon, comme sur le site public.
         -->
         <aside
-          class="flex flex-col justify-between gap-6 rounded-[1.15rem] bg-cocoa-dark p-5 text-cream"
+          class="flex flex-col justify-between gap-6 rounded-[1.15rem] bg-sidebar p-5 text-cream"
         >
-          <AdminLogo class="h-7 w-auto text-gold-soft" />
+          <AdminLogo ring class="h-10 w-10" />
           <p class="font-display text-[1.35rem] leading-snug">
             « Des locks qui révèlent votre beauté naturelle »
           </p>

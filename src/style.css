@@ -28,6 +28,11 @@
   --color-ink: #3a2113;
   --color-muted: #8a7566;
 
+  /* Dégradés du site v3 : marron brillant (badge), chocolat (boutons), espresso (aplats) */
+  --grad-brand: linear-gradient(115deg, #8a5330 0%, #b57a4b 34%, #d9a877 46%, #a9693d 58%, #6b3519 80%, #572a13 100%);
+  --grad-btn: linear-gradient(115deg, #7c4527 0%, #572a13 100%);
+  --grad-dark: linear-gradient(135deg, #4a2512 0%, #572a13 60%, #7c4527 100%);
+
   /* Propres à l'administration : surfaces de travail */
   --color-canvas: #faf7f3;
   --color-surface: #ffffff;
@@ -46,6 +51,15 @@
 
   --shadow-card: 0 1px 2px rgba(88, 48, 26, 0.04), 0 10px 30px -20px rgba(88, 48, 26, 0.3);
   --shadow-pop: 0 12px 40px -12px rgba(88, 48, 26, 0.32);
+}
+
+@utility bg-sidebar {
+  background-image: var(--grad-dark);
+  background-color: #572a13;
+}
+
+@utility bg-btn {
+  background-image: var(--grad-btn);
 }
 
 @layer base {
@@ -121,8 +135,8 @@
     width: 2.6rem;
     height: 2.6rem;
     border-radius: 0.85rem;
-    background: var(--color-cocoa-dark);
-    color: var(--color-gold-soft);
+    background: var(--grad-brand);
+    color: #fff;
   }
 
   .stat-value {
@@ -279,4 +293,9 @@
       transition-duration: 0.01ms !important;
     }
   }
+}
+
+/* Aplats chocolat (onglets actifs, pastilles) : même dégradé que les boutons du site v3. */
+.bg-cocoa-dark {
+  background-image: var(--grad-btn);
 }
