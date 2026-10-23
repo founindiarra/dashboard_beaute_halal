@@ -5,6 +5,7 @@ import BaseButton from '@/components/ui/BaseButton.vue'
 import BaseField from '@/components/ui/BaseField.vue'
 import ConfirmDialog from '@/components/ui/ConfirmDialog.vue'
 import DataState from '@/components/ui/DataState.vue'
+import ImageField from '@/components/ui/ImageField.vue'
 import PageHeader from '@/components/ui/PageHeader.vue'
 import { tarifs as api } from '@/services'
 import { useToastStore } from '@/stores/toasts'
@@ -86,6 +87,43 @@ const moveGoodToKnow = (index, delta) => {
   ;[list[index], list[target]] = [list[target], list[index]]
   touch()
 }
+const nextId = (list, prefix) => {
+  let n = list.length + 1
+  while (list.some((x) => x.id === `${prefix}${n}`)) n += 1
+  return `${prefix}${n}`
+}
+const addVolume = () => {
+  const c = catalogue.value
+  if (c.volumes.length >= 12) return toasts.error('12 volumes au maximum.')
+  const id = nextId(c.volumes, 'V')
+  c.volumes.push({ id, label: 'Nouveau volume', hint: '', image: '' })
+  for (const type of c.lockTypes) type.prices[id] = [0, 0]
+  touch()
+}
+const removeVolume = (index) => {
+  const c = catalogue.value
+  if (c.volumes.length <= 1) return toasts.error('Gardez au moins un volume.')
+  const [gone] = c.volumes.splice(index, 1)
+  for (const type of c.lockTypes) delete type.prices[gone.id]
+  touch()
+}
+const addLongueur = () => {
+  catalogue.value.longueurs.push({ label: 'Nouvelle longueur', hint: '', image: '' })
+  touch()
+}
+const removeLongueur = (index) => {
+  catalogue.value.longueurs.splice(index, 1)
+  touch()
+}
+const addPrestation = () => {
+  const list = catalogue.value.prestations
+  list.push({ id: nextId(list, 'prestation-'), name: 'Nouvelle prestation', description: '' })
+  touch()
+}
+const removePrestation = (index) => {
+  catalogue.value.prestations.splice(index, 1)
+  touch()
+}
 /** Les champs de texte optionnels peuvent manquer sur un catalogue ancien : on les crée à la saisie. */
 const ensure = () => {
   const c = catalogue.value
@@ -95,7 +133,10 @@ const ensure = () => {
   c.engagement ??= ''
   c.videoAdvice ??= ''
   c.goodToKnow ??= []
+  c.volumes ??= []
+  c.lockTypes ??= []
   for (const key of ['formules', 'besoins', 'prestations', 'longueurs']) c[key] ??= []
+  for (const item of [...(c.volumes ?? []), ...c.longueurs]) item.image ??= ''
 }
 
 const save = async () => {
@@ -172,7 +213,7 @@ const reset = async () => {
                 <BaseField v-model="type.description" label="Description" textarea :rows="3" @update:model-value="touch" />
               </div>
               <div class="sm:col-span-2">
-                <BaseField v-model="type.image" label="Photo (adresse ou chemin /uploads/…)" @update:model-value="touch" />
+                <ImageField v-model="type.image" label="Photo du type" @update:model-value="touch" @error="toasts.error($event)" />
               </div>
             </div>
           </details>
@@ -259,9 +300,13 @@ const reset = async () => {
             </div>
           </div>
 
+          <p class="rounded-lg border border-line bg-white px-3 py-2 text-xs text-muted">
+            Réparation : le site affiche désormais le prix de chaque niveau (partielle, globale), quel que soit le type. Ils se règlent dans
+            « Textes et règles du site ». Les deux champs ci-dessous ne servent plus qu’aux anciennes versions du site.
+          </p>
           <div class="grid gap-3 sm:grid-cols-2">
             <div class="flex flex-col">
-              <label class="label" :for="`repair-${type.id}`">Réparation : à partir de (FCFA)</label>
+              <label class="label" :for="`repair-${type.id}`">Réparation (ancien site) : à partir de (FCFA)</label>
               <input
                 :id="`repair-${type.id}`"
                 class="input"
@@ -301,20 +346,57 @@ const reset = async () => {
           <BaseField v-model="catalogue.videoAdvice" label="Conseil vidéo (formulaire de rendez-vous)" textarea :rows="2" @update:model-value="touch" />
         </section>
 
+
         <section class="card flex flex-col gap-4 p-4">
-          <h2 class="font-display text-xl text-cocoa-dark">Volumes et longueurs</h2>
-          <p class="text-xs text-muted">Les prix de chaque volume se règlent dans les tableaux des types ci-dessus.</p>
-          <ul class="flex flex-col gap-3">
-            <li v-for="volume in catalogue.volumes" :key="volume.id" class="grid gap-3 sm:grid-cols-[4rem_1fr_2fr]">
-              <span class="pt-2 font-display text-lg text-cocoa-dark">{{ volume.id }}</span>
-              <BaseField v-model="volume.label" label="Libellé" @update:model-value="touch" />
-              <BaseField v-model="volume.hint" label="Aide" @update:model-value="touch" />
+          <header class="flex items-start justify-between gap-3">
+            <div>
+            <h2 class="font-display text-xl text-cocoa-dark">Volumes de cheveux</h2>
+            <p class="text-xs text-muted">
+              Étape « Volume » du rendez-vous : une photo, un nom et une aide par volume. Sans photo, le site utilise
+              la photo du salon intégrée. Un nouveau volume démarre à 0 FCFA : réglez ses prix dans les tableaux des types.
+            </p>
+            </div>
+            <BaseButton variant="secondary" @click="addVolume">Ajouter un volume</BaseButton>
+          </header>
+          <ul class="grid gap-4 lg:grid-cols-2">
+            <li v-for="(volume, vi) in catalogue.volumes" :key="volume.id" class="flex flex-col gap-3 rounded-xl border border-line p-3">
+              <p class="font-display text-lg text-cocoa-dark">Volume {{ volume.id }}</p>
+              <ImageField
+                v-model="volume.image"
+                label="Photo"
+                hint="Une photo de chevelure qui correspond à ce volume (carrée ou portrait de préférence)."
+                @update:model-value="touch"
+                @error="toasts.error($event)"
+              />
+              <BaseField v-model="volume.label" label="Nom affiché" @update:model-value="touch" />
+              <BaseField v-model="volume.hint" label="Aide (texte sous le nom)" @update:model-value="touch" />
+              <div><BaseButton variant="danger" @click="removeVolume(vi)">Retirer ce volume</BaseButton></div>
             </li>
           </ul>
-          <ul class="flex flex-col gap-3 border-t border-line pt-3">
-            <li v-for="(longueur, i) in catalogue.longueurs" :key="i" class="grid gap-3 sm:grid-cols-2">
-              <BaseField v-model="longueur.label" label="Longueur" @update:model-value="touch" />
-              <BaseField v-model="longueur.hint" label="Aide" @update:model-value="touch" />
+        </section>
+
+        <section class="card flex flex-col gap-4 p-4">
+          <header class="flex items-start justify-between gap-3">
+            <div>
+            <h2 class="font-display text-xl text-cocoa-dark">Longueurs de cheveux</h2>
+            <p class="text-xs text-muted">
+              Étape « Longueur » du rendez-vous. Le nom sert d’identifiant : il est enregistré tel quel dans la demande.
+            </p>
+            </div>
+            <BaseButton variant="secondary" @click="addLongueur">Ajouter une longueur</BaseButton>
+          </header>
+          <ul class="grid gap-4 lg:grid-cols-2">
+            <li v-for="(longueur, i) in catalogue.longueurs" :key="i" class="flex flex-col gap-3 rounded-xl border border-line p-3">
+              <ImageField
+                v-model="longueur.image"
+                label="Photo"
+                hint="Une photo qui montre cette longueur (carrée ou portrait de préférence)."
+                @update:model-value="touch"
+                @error="toasts.error($event)"
+              />
+              <BaseField v-model="longueur.label" label="Nom" @update:model-value="touch" />
+              <BaseField v-model="longueur.hint" label="Aide (texte sous le nom)" @update:model-value="touch" />
+              <div><BaseButton variant="danger" @click="removeLongueur(i)">Retirer cette longueur</BaseButton></div>
             </li>
           </ul>
         </section>
@@ -345,11 +427,15 @@ const reset = async () => {
         </section>
 
         <section class="card flex flex-col gap-4 p-4">
-          <h2 class="font-display text-xl text-cocoa-dark">Prestations de la page Tarifs</h2>
+          <header class="flex items-center justify-between gap-3">
+            <h2 class="font-display text-xl text-cocoa-dark">Prestations de la page Tarifs</h2>
+            <BaseButton variant="secondary" @click="addPrestation">Ajouter une prestation</BaseButton>
+          </header>
           <ul class="flex flex-col gap-4">
-            <li v-for="prestation in catalogue.prestations" :key="prestation.id" class="flex flex-col gap-3">
+            <li v-for="(prestation, pi) in catalogue.prestations" :key="prestation.id" class="flex flex-col gap-3 rounded-xl border border-line p-3">
               <BaseField v-model="prestation.name" label="Nom" @update:model-value="touch" />
               <BaseField v-model="prestation.description" label="Description" textarea :rows="2" @update:model-value="touch" />
+              <div><BaseButton variant="danger" @click="removePrestation(pi)">Retirer</BaseButton></div>
             </li>
           </ul>
         </section>

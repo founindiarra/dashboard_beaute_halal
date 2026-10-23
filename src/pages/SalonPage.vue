@@ -97,6 +97,49 @@ const GROUPS = [
         type: 'number',
         hint: 'Nombre de jours à l’avance proposés dans le calendrier.',
       },
+      {
+        key: 'consultation_fee',
+        label: 'Prix de la consultation (FCFA)',
+        type: 'number',
+        hint: 'Demandé aux nouvelles clientes avant la confirmation du rendez-vous (paiement Jèko). Chiffres seulement.',
+      },
+    ],
+  },
+  {
+    title: 'Vœux d’anniversaire',
+    icon: 'gift',
+    fields: [
+      {
+        key: 'birthday_enabled',
+        label: 'Vœux d’anniversaire',
+        options: [{ value: '0', label: 'Désactivés' }, { value: '1', label: 'Activés' }],
+        hint: 'Activés : le bouton « Envoyer les vœux » de la Messagerie fonctionne.',
+      },
+      {
+        key: 'birthday_channel',
+        label: 'Canal d’envoi',
+        options: [{ value: 'sms', label: 'SMS' }, { value: 'whatsapp', label: 'WhatsApp' }, { value: 'email', label: 'E-mail' }],
+      },
+      {
+        key: 'birthday_template',
+        label: 'Message',
+        textarea: true,
+        hint: 'Variables : {prenom}, {salon}. Pour un SMS, évitez les accents : un seul accent découpe le message en plusieurs SMS.',
+      },
+    ],
+  },
+  {
+    title: 'Messages automatiques de réservation',
+    icon: 'send',
+    fields: [
+      { key: 'notify_request_paid_enabled', label: 'Paiement reçu', options: [{ value: '1', label: 'Envoyé' }, { value: '0', label: 'Non envoyé' }], hint: 'Envoyé à la cliente par SMS, e-mail et WhatsApp dès que son paiement est confirmé.' },
+      { key: 'notify_request_paid_template', label: 'Texte « paiement reçu »', textarea: true, hint: 'Variables : {prenom}, {reference}, {paye}, {salon}. Vide = texte d’origine.' },
+      { key: 'notify_payment_confirmed_enabled', label: 'Confirmé après paiement', options: [{ value: '1', label: 'Envoyé' }, { value: '0', label: 'Non envoyé' }], hint: 'Envoyé à la cliente par SMS, e-mail et WhatsApp quand son rendez-vous est confirmé automatiquement après le paiement de la consultation.' },
+      { key: 'notify_payment_confirmed_template', label: 'Texte « confirmé après paiement »', textarea: true, hint: 'Variables : {prenom}, {date}, {heure}, {prestation}, {paye}, {reference}, {salon}. Vide = texte d’origine.' },
+      { key: 'notify_request_received_enabled', label: 'Demande reçue', options: [{ value: '1', label: 'Envoyé' }, { value: '0', label: 'Non envoyé' }] },
+      { key: 'notify_request_received_template', label: 'Texte « demande reçue »', textarea: true, hint: 'Variables : {prenom}, {reference}, {salon}. Vide = texte d’origine.' },
+      { key: 'notify_request_confirmed_enabled', label: 'Rendez-vous confirmé', options: [{ value: '1', label: 'Envoyé' }, { value: '0', label: 'Non envoyé' }] },
+      { key: 'notify_request_confirmed_template', label: 'Texte « rendez-vous confirmé »', textarea: true, hint: 'Variables : {prenom}, {date}, {heure}, {prix}, {reference}, {salon}. Vide = texte d’origine.' },
     ],
   },
 ]
@@ -153,7 +196,7 @@ const revert = () => {
   <div class="flex flex-col gap-5">
     <PageHeader
       title="Paramètres du salon"
-      subtitle="Coordonnées, adresse et réseaux affichés sur le site public."
+      subtitle="Coordonnées, adresse et réseaux du site public, vœux d’anniversaire et messages automatiques."
     >
       <template #actions>
         <BaseButton
@@ -206,7 +249,8 @@ const revert = () => {
                 :label="field.label"
                 :type="field.type || 'text'"
                 :textarea="Boolean(field.textarea)"
-                :rows="2"
+                :options="field.options || null"
+                :rows="3"
                 :placeholder="field.placeholder || ''"
                 :hint="field.hint || ''"
               />

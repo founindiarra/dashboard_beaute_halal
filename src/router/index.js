@@ -47,6 +47,27 @@ const routes = [
     meta: { title: 'Tarifs du site', permission: 'tarifs' },
   },
   {
+    path: '/soins-capillaires',
+    name: 'soins',
+    component: () => import('@/pages/SoinsPage.vue'),
+    meta: { title: 'Soins capillaires', permission: 'soins' },
+  },
+  {
+    path: '/textes-du-site',
+    name: 'siteTexts',
+    component: () => import('@/pages/SiteTextsPage.vue'),
+    meta: { title: 'Textes et règles du site', permission: 'site_texts' },
+  },
+  {
+    path: '/images-des-pages',
+    name: 'sitePhotos',
+    component: () => import('@/pages/SitePhotosPage.vue'),
+    meta: { title: 'Images des pages', permission: 'site_photos' },
+  },
+  // Anciens liens : « Coiffures du site » est désormais la page Prestations ; « Photos du site » a été renommée.
+  { path: '/coiffures-du-site', redirect: { name: 'services' } },
+  { path: '/photos-du-site', redirect: { name: 'sitePhotos' } },
+  {
     path: '/rendez-vous-confirmes',
     name: 'confirmed',
     component: () => import('@/pages/ConfirmedAppointmentsPage.vue'),
@@ -111,6 +132,20 @@ const routes = [
     name: 'customer',
     component: () => import('@/pages/CustomerPage.vue'),
     meta: { title: 'Fiche cliente', permission: 'customers' },
+  },
+  {
+    path: '/whatsapp',
+    name: 'whatsapp',
+    component: () => import('@/pages/WhatsAppPage.vue'),
+    // Réservé à l'administratrice : le serveur refuse tout autre compte, le menu ne fait que masquer.
+    meta: { title: 'WhatsApp', permission: 'whatsapp' },
+  },
+  {
+    path: '/paiements-jeko',
+    name: 'jeko',
+    component: () => import('@/pages/JekoPaymentsPage.vue'),
+    // Réservé à l'administratrice : le serveur refuse tout autre compte, le menu ne fait que masquer.
+    meta: { title: 'Paiements Jèko', permission: 'jeko' },
   },
   {
     path: '/messagerie',

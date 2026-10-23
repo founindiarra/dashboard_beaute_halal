@@ -313,6 +313,10 @@ const onDeleted = () => {
                     :label="statusOf(item.status).label"
                     :tone="statusOf(item.status).tone"
                   />
+                  <span v-if="item.request?.payment?.needsReview" class="mt-1 block"><StatusBadge label="Payé · à régulariser" tone="danger" /></span>
+                  <span v-else-if="item.request?.payment?.status === 'paid'" class="mt-1 block text-[0.7rem] text-muted">
+                    {{ item.request.payment.autoConfirmed ? 'Payé · confirmé auto' : 'Payé' }}
+                  </span>
                 </td>
                 <td class="text-right">
                   <AdminIcon name="chevron-right" class="h-4 w-4 text-sand-dark" />

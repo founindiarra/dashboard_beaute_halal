@@ -169,12 +169,19 @@ export const REQUEST_STATUSES = {
 /** Statuts qui préviennent la cliente (même table que le backend). */
 export const REQUEST_NOTIFIED = ['contacted', 'confirmed', 'rejected']
 
-export const BESOIN_LABELS = { creation: 'Création complète', resserrage: 'Resserrage' }
+export const BESOIN_LABELS = { creation: 'Installation de locks', resserrage: 'Resserrage' }
 export const LOCK_TYPE_LABELS = {
   traditionnels: 'Locks traditionnels',
   small: 'Small locks',
   micro: 'Micro-locks',
 }
+/** Méthode de pose d'une installation, nommée comme sur le site selon le type de locks. */
+const METHODES_GENERIQUES = { interlocking: 'Interlocking', braid: 'Braid', twist: 'Twist', broderie: 'Broderie' }
+const METHODES_PAR_TYPE = {
+  micro: { interlocking: 'Micro interlocking', braid: 'Micro braid', twist: 'Micro twist', broderie: 'Broderie' },
+  small: { interlocking: 'Small interlocking', braid: 'Small micro braid', twist: 'Small micro twist', broderie: 'Small broderie' },
+}
+export const libelleMethode = (lockType, methode) => (methode ? ((METHODES_PAR_TYPE[lockType] ?? METHODES_GENERIQUES)[methode] ?? methode) : null)
 export const VOLUME_LABELS = {
   XS: 'Très peu de volume',
   S: 'Peu de volume',
@@ -209,3 +216,23 @@ export const CHANNEL_LABELS = { sms: 'SMS', email: 'E-mail', whatsapp: 'WhatsApp
 /** Montant en FCFA : « 22 000 FCFA ». */
 export const formatFcfa = (value) =>
   `${new Intl.NumberFormat('fr-FR').format(Number(value) || 0).replace(/\u202f|\u00a0/g, ' ')} FCFA`
+
+/* ───────────── Paiements Jèko ───────────── */
+
+export const JEKO_STATUSES = {
+  success: { label: 'Réussi', tone: 'ok' },
+  pending: { label: 'En attente', tone: 'warn' },
+  failed: { label: 'Échoué', tone: 'danger' },
+  cancelled: { label: 'Annulé', tone: 'neutral' },
+  expired: { label: 'Expiré', tone: 'neutral' },
+}
+export const JEKO_METHODS = { wave: 'Wave', orange: 'Orange Money', mtn: 'MTN', moov: 'Moov', djamo: 'Djamo' }
+export const JEKO_SOURCES = { initiation: 'Création', webhook: 'Webhook', verification: 'Vérification' }
+export const JEKO_OUTCOMES = {
+  processed: { label: 'Traité', tone: 'ok' },
+  duplicate: { label: 'Doublon ignoré', tone: 'info' },
+  ignored: { label: 'Sans effet', tone: 'neutral' },
+  unmatched: { label: 'Non rattaché', tone: 'warn' },
+  rejected: { label: 'Refusé', tone: 'danger' },
+  error: { label: 'Erreur', tone: 'danger' },
+}

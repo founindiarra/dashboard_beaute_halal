@@ -13,25 +13,25 @@
 
   /* Identité partagée avec le site public */
   --color-cream: #fdfbf7;
-  --color-ivory: #f8f2e9;
+  --color-ivory: #f5ede3;
   --color-sand: #efe4d5;
   --color-sand-dark: #e0cdb6;
-  --color-gold: #b08a57;
-  --color-gold-soft: #cbac81;
+  --color-gold: #b8942f;
+  --color-gold-soft: #e5c56b;
   /*
    * Le brun du site public, à l'identique : c'est la même marque, les deux
    * interfaces doivent se répondre. « cocoa-dark » porte les grands aplats —
    * barre latérale, boutons — et le texte sombre sur fond clair.
    */
-  --color-cocoa: #7c4527;
-  --color-cocoa-dark: #58301a;
-  --color-ink: #3a2113;
+  --color-cocoa: #6b3d24;
+  --color-cocoa-dark: #4e2e1e;
+  --color-ink: #32180f;
   --color-muted: #8a7566;
 
   /* Dégradés du site v3 : marron brillant (badge), chocolat (boutons), espresso (aplats) */
-  --grad-brand: linear-gradient(115deg, #8a5330 0%, #b57a4b 34%, #d9a877 46%, #a9693d 58%, #6b3519 80%, #572a13 100%);
-  --grad-btn: linear-gradient(115deg, #7c4527 0%, #572a13 100%);
-  --grad-dark: linear-gradient(135deg, #4a2512 0%, #572a13 60%, #7c4527 100%);
+  --grad-brand: linear-gradient(115deg, #6b3d24 0%, #8f5a36 34%, #b98d5e 46%, #7a4a2c 58%, #4e2e1e 80%, #32180f 100%);
+  --grad-btn: linear-gradient(115deg, #5a3220 0%, #7d4e2e 30%, #9a6b43 45%, #744529 58%, #4e2e1e 82%, #3a1e13 100%);
+  --grad-dark: linear-gradient(135deg, #32180f 0%, #3a1e13 60%, #4e2e1e 100%);
 
   /* Propres à l'administration : surfaces de travail */
   --color-canvas: #faf7f3;
@@ -49,13 +49,13 @@
   --color-info: #40607f;
   --color-info-bg: #eef2f6;
 
-  --shadow-card: 0 1px 2px rgba(88, 48, 26, 0.04), 0 10px 30px -20px rgba(88, 48, 26, 0.3);
-  --shadow-pop: 0 12px 40px -12px rgba(88, 48, 26, 0.32);
+  --shadow-card: 0 1px 2px rgba(50, 24, 15, 0.04), 0 10px 30px -20px rgba(50, 24, 15, 0.3);
+  --shadow-pop: 0 12px 40px -12px rgba(50, 24, 15, 0.32);
 }
 
 @utility bg-sidebar {
   background-image: var(--grad-dark);
-  background-color: #572a13;
+  background-color: #32180f;
 }
 
 @utility bg-btn {

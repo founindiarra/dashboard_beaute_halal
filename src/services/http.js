@@ -190,7 +190,12 @@ async function request(
     })
   }
 
-  return { data: payload?.data ?? null, meta: payload?.meta ?? null }
+  // `extra` : champs de premier niveau autres que data/meta (ex. curseur et compteurs de la messagerie).
+  const extra = { ...(payload ?? {}) }
+  delete extra.success
+  delete extra.data
+  delete extra.meta
+  return { data: payload?.data ?? null, meta: payload?.meta ?? null, extra }
 }
 
 /**

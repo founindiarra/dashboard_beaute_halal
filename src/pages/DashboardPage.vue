@@ -217,7 +217,7 @@ const initialsOf = (customer) =>
             :to="card.to"
             class="card stat-card transition-colors hover:border-gold/50"
           >
-            <span class="stat-icon" :class="card.tone === 'warn' ? '!bg-warn-bg !text-warn' : ''">
+            <span class="stat-icon" :class="card.tone === 'warn' && card.key !== 'requests' ? '!bg-warn-bg !text-warn' : ''">
               <AdminIcon :name="card.icon" class="h-[1.15rem] w-[1.15rem]" />
             </span>
 

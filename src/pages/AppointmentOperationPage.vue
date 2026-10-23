@@ -763,6 +763,8 @@ const retour = () => router.push({ name: 'confirmed' })
                         start: 'play',
                         complete: 'check',
                         payment: 'cash',
+                        auto_confirm: 'check',
+                        payment_review: 'alert',
                         discount: 'percent',
                         document: 'receipt',
                         assignment: 'door',

@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
 import NotificationBell from '@/components/layout/NotificationBell.vue'
@@ -113,9 +113,29 @@ watch(menuOpen, (open) => {
 })
 
 const logout = () => {
+  profileOpen.value = false
   auth.logout()
   router.push({ name: 'login' })
 }
+
+/** Menu du profil (icône de l'en-tête) : se ferme au clic ailleurs, avec Échap et à chaque changement de page. */
+const profileOpen = ref(false)
+const profileRoot = ref(null)
+const closeOnOutside = (event) => {
+  if (profileOpen.value && profileRoot.value && !profileRoot.value.contains(event.target)) profileOpen.value = false
+}
+const closeOnEscape = (event) => {
+  if (event.key === 'Escape') profileOpen.value = false
+}
+onMounted(() => {
+  document.addEventListener('click', closeOnOutside)
+  document.addEventListener('keydown', closeOnEscape)
+})
+onBeforeUnmount(() => {
+  document.removeEventListener('click', closeOnOutside)
+  document.removeEventListener('keydown', closeOnEscape)
+})
+watch(() => route.name, () => { profileOpen.value = false })
 </script>
 
 <template>
@@ -219,22 +239,65 @@ const logout = () => {
             <AdminIcon name="calendar" class="h-3.5 w-3.5 text-gold" />
             {{ today }}
           </span>
-          <RouterLink
-            :to="{ name: 'account' }"
-            class="grid h-9 w-9 place-items-center rounded-full bg-ivory text-xs font-medium text-cocoa-dark transition-colors hover:bg-sand lg:hidden"
-            :aria-label="`Mon compte — ${auth.user?.name || ''}`"
-          >
-            {{ initials }}
-          </RouterLink>
-          <button
-            type="button"
-            class="grid h-9 w-9 place-items-center rounded-lg text-muted transition-colors hover:bg-ivory hover:text-danger lg:hidden"
-            aria-label="Se déconnecter"
-            title="Se déconnecter"
-            @click="logout"
-          >
-            <AdminIcon name="logout" class="h-4 w-4" />
-          </button>
+          <div ref="profileRoot" class="relative">
+            <button
+              type="button"
+              class="grid h-9 w-9 place-items-center rounded-full border border-line bg-ivory text-cocoa-dark transition-colors hover:bg-sand focus:outline-none focus-visible:ring-2 focus-visible:ring-gold"
+              :aria-expanded="profileOpen"
+              aria-haspopup="menu"
+              :aria-label="`Profil — ${auth.user?.name || ''}`"
+              :title="auth.user?.name || 'Profil'"
+              @click.stop="profileOpen = !profileOpen"
+            >
+              <AdminIcon name="user" class="h-4.5 w-4.5" />
+            </button>
+            <div
+              v-if="profileOpen"
+              role="menu"
+              class="absolute right-0 top-11 z-40 w-64 overflow-hidden rounded-xl border border-line bg-surface shadow-lg"
+            >
+              <div class="flex items-center gap-3 border-b border-line-soft px-4 py-3">
+                <span class="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-cocoa-dark text-xs font-medium text-cream">
+                  {{ initials }}
+                </span>
+                <span class="flex min-w-0 flex-col leading-tight">
+                  <span class="truncate text-sm font-medium text-cocoa-dark">{{ auth.user?.name }}</span>
+                  <span class="truncate text-xs text-muted">{{ auth.user?.email }}</span>
+                  <span class="mt-0.5 text-[0.68rem] uppercase tracking-wide text-gold">
+                    {{ auth.user?.role === 'admin' ? 'Administratrice' : 'Agent' }}
+                  </span>
+                </span>
+              </div>
+              <RouterLink
+                :to="{ name: 'account' }"
+                role="menuitem"
+                class="flex items-center gap-2.5 px-4 py-2.5 text-sm text-cocoa-dark transition-colors hover:bg-ivory"
+              >
+                <AdminIcon name="user" class="h-4 w-4 text-muted" />
+                Mon compte
+              </RouterLink>
+              <a
+                v-if="publicSite"
+                :href="publicSite"
+                target="_blank"
+                rel="noopener noreferrer"
+                role="menuitem"
+                class="flex items-center gap-2.5 px-4 py-2.5 text-sm text-cocoa-dark transition-colors hover:bg-ivory"
+              >
+                <AdminIcon name="external" class="h-4 w-4 text-muted" />
+                Voir le site public
+              </a>
+              <button
+                type="button"
+                role="menuitem"
+                class="flex w-full items-center gap-2.5 border-t border-line-soft px-4 py-2.5 text-left text-sm text-danger transition-colors hover:bg-ivory"
+                @click="logout"
+              >
+                <AdminIcon name="logout" class="h-4 w-4" />
+                Se déconnecter
+              </button>
+            </div>
+          </div>
         </div>
       </header>
 

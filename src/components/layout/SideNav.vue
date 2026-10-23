@@ -58,6 +58,8 @@ const GROUPES = [
       { name: 'history', label: 'Historique', icon: 'refresh', permission: 'appointments' },
       { name: 'customers', label: 'Clientes', icon: 'users', permission: 'customers' },
       { name: 'messaging', label: 'Messagerie', icon: 'send', permission: 'messaging' },
+      { name: 'whatsapp', label: 'WhatsApp', icon: 'phone', permission: 'whatsapp' },
+      { name: 'jeko', label: 'Paiements Jèko', icon: 'cash', permission: 'jeko' },
       { name: 'messages', label: 'Messages', icon: 'mail', badge: 'messages', permission: 'messages' },
     ],
   },
@@ -65,9 +67,12 @@ const GROUPES = [
     title: 'Contenu',
     links: [
       { name: 'services', label: 'Prestations', icon: 'scissors', permission: 'catalog' },
-      { name: 'categories', label: 'Catégories', icon: 'tag', permission: 'catalog' },
+      { name: 'categories', label: 'Catégories', icon: 'grid', permission: 'catalog' },
       { name: 'testimonials', label: 'Avis clientes', icon: 'star', permission: 'catalog' },
+      { name: 'soins', label: 'Soins capillaires', icon: 'tag', permission: 'soins' },
       { name: 'tarifs', label: 'Tarifs du site', icon: 'cash', permission: 'tarifs' },
+      { name: 'siteTexts', label: 'Textes et règles du site', icon: 'settings', permission: 'site_texts' },
+      { name: 'sitePhotos', label: 'Images des pages', icon: 'image', permission: 'site_photos' },
     ],
   },
   {

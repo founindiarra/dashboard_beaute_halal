@@ -190,6 +190,9 @@ export const bookingRequests = {
   /** Filtres : status, search, from, to, order, page, limit. */
   list: (params = {}) =>
     http.get('/admin/booking-requests', params).then((r) => ({ rows: r.data ?? [], meta: r.meta })),
+  /** Historique des clientes (une ligne par cliente) : { rows, meta }. Filtres : search, page, limit. */
+  clients: (params = {}) =>
+    http.get('/admin/booking-requests/clients', params).then((r) => ({ rows: r.data ?? [], meta: r.meta })),
   find: (id) => http.get(`/admin/booking-requests/${id}`).then((r) => r.data),
   /** { total, byStatus, newToday, upcomingWished } */
   stats: () => http.get('/admin/booking-requests/stats').then((r) => r.data),
@@ -461,7 +464,104 @@ export const messaging = {
   templates: () => http.get('/admin/messaging/templates').then((r) => r.data ?? []),
 }
 
+/* ═════════════════════════ WhatsApp (connexion par QR code) ═══════════════ */
+
+/**
+ * Le dashboard ne parle JAMAIS au service WhatsApp : tout passe par le backend,
+ * qui signe les appels et garde le secret. Réservé à l'administratrice (droit « whatsapp »).
+ */
+export const whatsapp = {
+  /** { provider, enabled, configured, missing[], service: { reachable, error }, connection | null } */
+  status: () => http.get('/admin/whatsapp/status').then((r) => r.data),
+  /** Démarre la connexion : un QR n'est produit que s'il n'existe aucune session conservée. */
+  connect: () => http.post('/admin/whatsapp/connect', {}).then((r) => r.data),
+  /** { dataUrl, expiresAt } — le QR courant, à garder en mémoire du composant seulement. */
+  qr: () => http.get('/admin/whatsapp/qr').then((r) => r.data),
+  /** Déconnexion RÉELLE du compte : l'appareil est délié et la session supprimée. */
+  disconnect: () => http.post('/admin/whatsapp/disconnect', { confirm: true }).then((r) => r.data),
+  /** { text? } — un vrai message vers le numéro d'essai configuré SUR LE SERVEUR (jamais un numéro saisi ici). */
+  testMessage: (payload = {}) => http.post('/admin/whatsapp/test-message', payload).then((r) => r.data),
+  /** Journal des envois (sans texte, numéros masqués) : { rows, meta }. */
+  logs: (params = {}) =>
+    http.get('/admin/whatsapp/logs', params).then((r) => ({ rows: r.data ?? [], meta: r.meta })),
+}
+
+/**
+ * Discussions WhatsApp : conversations et messages conservés en base par le backend, qui relit les événements
+ * du service. Toutes les routes exigent le droit « whatsapp ». `get`/`post` renvoient le corps complet
+ * ({ rows, meta, unread, cursor, sync }) quand la page a besoin de plus que `data`.
+ */
+export const whatsappChat = {
+  /** { rows: conversations[], meta: { total }, unread: { messages, conversations }, cursor, sync } */
+  conversations: (params = {}) =>
+    http.get('/admin/whatsapp/chat/conversations', params).then((r) => ({ rows: r.data ?? [], meta: r.meta, ...r.extra })),
+  /** { conversation, messages[] (chronologique), hasMore } — `before` = id du plus ancien message affiché. */
+  messages: (id, params = {}) => http.get(`/admin/whatsapp/chat/conversations/${id}/messages`, params).then((r) => r.data),
+  markRead: (id) => http.post(`/admin/whatsapp/chat/conversations/${id}/read`, {}).then((r) => r.data),
+  /** `clientRef` : le même identifiant ne produit jamais deux messages (renvoi sans doublon). */
+  send: (id, payload) => http.post(`/admin/whatsapp/chat/conversations/${id}/messages`, payload, { timeout: 30000 }).then((r) => ({ message: r.data, replayed: !!r.extra?.replayed })),
+  start: (payload) => http.post('/admin/whatsapp/chat/conversations', payload, { timeout: 30000 }).then((r) => r.data),
+  retry: (messageId) =>
+    http.post(`/admin/whatsapp/chat/messages/${messageId}/retry`, {}, { timeout: 30000 }).then((r) => ({ message: r.data, replayed: !!r.extra?.replayed })),
+  /** Changements depuis le curseur (ms) : { conversations, messages, cursor, more, unread, sync }. */
+  updates: (since) => http.get('/admin/whatsapp/chat/updates', { since }).then((r) => r.data),
+  summary: () => http.get('/admin/whatsapp/chat/summary').then((r) => r.data),
+}
+
+/* ═════════════════════════ Paiements Jèko (administratrice) ═══════════════ */
+
+/**
+ * Tout vient de la base du backend (tentatives de paiement et journal des événements). Le navigateur ne parle
+ * jamais à Jèko : « verify » et « refresh » demandent au SERVEUR de relire le statut chez Jèko.
+ * Réservé à l'administratrice (droit « jeko »). Aucune clé ni aucun secret n'est renvoyé par ces routes.
+ */
+export const jeko = {
+  /** Statistiques (réussis, en attente, échoués, annulés, montants, par moyen), webhooks, état de la configuration. */
+  overview: () => http.get('/admin/jeko/overview').then((r) => r.data),
+  /** Filtres : status, method, mode, from, to, search, errors ('1'), page, limit → { rows, meta }. */
+  payments: (params = {}) =>
+    http.get('/admin/jeko/payments', params).then((r) => ({ rows: r.data ?? [], meta: r.meta })),
+  /** Détail : identifiants Jèko, erreurs, historique, pistes de diagnostic, dossier pour le support Jèko. */
+  payment: (id) => http.get(`/admin/jeko/payments/${id}`).then((r) => r.data),
+  /** Relit CE paiement chez Jèko et applique le statut (un succès n'est retenu que si Jèko le confirme). */
+  verify: (id) => http.post(`/admin/jeko/payments/${id}/verify`, {}, { timeout: 30000 }).then((r) => r.data),
+  /** Relit chez Jèko les paiements encore en attente → { checked, updated, errors }. */
+  refresh: () => http.post('/admin/jeko/payments/refresh', {}, { timeout: 90000 }).then((r) => r.data),
+  /** Journal technique : création, webhooks reçus, vérifications. Filtres : outcome, source, page, limit. */
+  events: (params = {}) =>
+    http.get('/admin/jeko/events', params).then((r) => ({ rows: r.data ?? [], meta: r.meta })),
+}
+
 /* ══════════════════════════════ Dépôt d'images ════════════════════════════ */
+
+/** Réduit une photo (JPEG/PNG/WebP) : 2000 px max, WebP 85 %. Renvoie le fichier d'origine si rien n'est gagné. */
+async function reduireImage(file) {
+  const MAX = 2000
+  if (!/^image\/(jpeg|png|webp)$/.test(file.type) || file.size < 400 * 1024) return file
+  try {
+    const bitmap = await window.createImageBitmap(file)
+    const ratio = Math.min(1, MAX / Math.max(bitmap.width, bitmap.height))
+    const canvas = document.createElement('canvas')
+    canvas.width = Math.round(bitmap.width * ratio)
+    canvas.height = Math.round(bitmap.height * ratio)
+    canvas.getContext('2d').drawImage(bitmap, 0, 0, canvas.width, canvas.height)
+    bitmap.close?.()
+    const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/webp', 0.85))
+    if (!blob || blob.type !== 'image/webp' || blob.size >= file.size) return file
+    return new File([blob], `${file.name.replace(/\.[^.]+$/, '') || 'image'}.webp`, { type: 'image/webp' })
+  } catch {
+    return file
+  }
+}
+
+function lireBase64(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new window.FileReader()
+    reader.onload = () => resolve(String(reader.result).split(',')[1] ?? '')
+    reader.onerror = () => reject(new Error('Impossible de lire ce fichier.'))
+    reader.readAsDataURL(file)
+  })
+}
 
 export const uploads = {
   /**
@@ -469,10 +569,29 @@ export const uploads = {
    * Renvoie { path, url, filename } ; c'est `path` qu'il faut enregistrer
    * dans les champs `imageUrl`, pas l'URL absolue.
    */
-  send: (file) => {
+  send: async (file) => {
+    // Les photos de téléphone pèsent souvent plus que la limite du serveur (5 Mo), qui coupe alors la connexion :
+    // on les réduit ici (2000 px max, WebP) avant l'envoi.
+    const prepared = await reduireImage(file)
+    if (prepared.size > 5 * 1024 * 1024) {
+      throw new Error('Cette image est trop lourde (5 Mo maximum). Choisissez une image plus légère.')
+    }
+    // Envoi en JSON (base64) : l'hébergeur bloque (403) les envois « multipart » avec fichier.
+    const data = await lireBase64(prepared)
+    try {
+      return (await http.post('/admin/uploads/base64', { filename: prepared.name, data }, { timeout: 60000 })).data
+    } catch (error) {
+      if (error?.code === 'NETWORK_ERROR') {
+        throw new Error('L’envoi de l’image a été interrompu (connexion instable ou image trop lourde). Réessayez avec une image plus légère.')
+      }
+      throw error
+    }
+  },
+  /** POST /admin/uploads/video — multipart, champ « video » (MP4 ou WebM). */
+  sendVideo: (file) => {
     const form = new FormData()
-    form.append('image', file)
-    return http.post('/admin/uploads', null, { raw: form, timeout: 60000 }).then((r) => r.data)
+    form.append('video', file)
+    return http.post('/admin/uploads/video', null, { raw: form, timeout: 300000 }).then((r) => r.data)
   },
   remove: (filename) => http.delete(`/admin/uploads/${encodeURIComponent(filename)}`),
 }

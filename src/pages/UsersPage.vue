@@ -64,9 +64,14 @@ const ACCES = [
   { key: 'messages', label: 'Messages reçus', hint: 'Formulaire de contact du site' },
   { key: 'catalog', label: 'Contenu', hint: 'Prestations (coiffures), catégories, avis' },
   { key: 'tarifs', label: 'Tarifs du site', hint: 'Prix affichés sur le site' },
+  { key: 'soins', label: 'Soins capillaires', hint: 'Étapes de la prise de rendez-vous, demandes de consultation, historique des clientes' },
+  { key: 'site_texts', label: 'Textes et règles du site', hint: 'Textes, règles et mentions du site public' },
+  { key: 'site_photos', label: 'Images des pages', hint: 'Photos et visuels des pages du site public' },
   { key: 'schedule', label: 'Horaires', hint: 'Horaires et fermetures exceptionnelles' },
   { key: 'team', label: 'Agents et bureaux', hint: 'Équipe, bureaux et salons' },
   { key: 'salon', label: 'Paramètres du salon', hint: 'Coordonnées, adresse, réseaux' },
+  { key: 'whatsapp', label: 'WhatsApp du salon', hint: 'Connexion par QR code, discussions avec les clientes, journal — parle au nom du salon' },
+  { key: 'jeko', label: 'Paiements Jèko', hint: 'Transactions, erreurs, webhooks, vérification des statuts — sensible' },
   { key: 'accounting_day', label: 'Caisse du jour', hint: 'Chiffre d’affaires et dépenses d’aujourd’hui seulement' },
   { key: 'accounting', label: 'Comptabilité complète', hint: 'Soldes, banque, tous les jours — sensible' },
 ]
@@ -75,9 +80,10 @@ const ACCES = [
 const MODELES = [
   { label: 'Accueil', keys: ['appointments', 'customers'] },
   {
-    label: 'Tout sauf comptabilité',
-    keys: ACCES.filter((a) => !['accounting', 'accounting_day'].includes(a.key)).map((a) => a.key),
+    label: 'Tout sauf comptabilité, WhatsApp et Jèko',
+    keys: ACCES.filter((a) => !['accounting', 'accounting_day', 'whatsapp', 'jeko'].includes(a.key)).map((a) => a.key),
   },
+  { label: 'Tout accorder', keys: ACCES.map((a) => a.key) },
   { label: 'Aucun', keys: [] },
 ]
 

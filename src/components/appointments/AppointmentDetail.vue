@@ -22,6 +22,7 @@ import {
   capitalize,
   formatDateLong,
   formatDateTime,
+  libelleMethode,
   formatDuration,
   formatFcfa,
   formatPrice,
@@ -85,18 +86,50 @@ const onPlanned = (updated) => {
   emit('updated', updated)
 }
 
+const CONSULT_MODES = { telephone: 'par téléphone', whatsapp: 'par WhatsApp', sur_place: 'en salon' }
+const PAY_METHODS = { wave: 'Wave', orange: 'Orange Money', mtn: 'MTN MoMo', moov: 'Moov Money', djamo: 'Djamo' }
+const consultationText = (k) => {
+  if (!k) return ''
+  if (!k.mode) return 'Ignorée par la cliente'
+  const how = CONSULT_MODES[k.mode] ?? k.mode
+  const locks = k.hasLocks === null ? '' : k.hasLocks ? ' · a des locks' : ' · n’a pas de locks'
+  const day = k.mode === 'sur_place' && k.date ? ` le ${formatDateLong(String(k.date).slice(0, 10))}${k.time ? ` à ${k.time}` : ''}` : ''
+  return `Souhaitée ${how}${day}${locks}`
+}
+const paymentText = (p) => {
+  if (!p || p.status === 'none') return ''
+  const amount = p.amount ? formatFcfa(p.amount) : ''
+  if (p.status === 'paid') {
+    const via = PAY_METHODS[p.method] ? ` via ${PAY_METHODS[p.method]}` : ''
+    return `Payé · ${amount}${via}${p.paidAt ? ` · ${formatDateTime(p.paidAt)}` : ''}`
+  }
+  return `${p.status === 'failed' ? 'Échoué' : 'En attente'} · ${amount}`
+}
+
+const confirmationText = (p) => {
+  if (!p || p.status !== 'paid') return ''
+  if (p.needsReview) return 'Paiement reçu, rendez-vous NON confirmé : à régulariser (créneau indisponible, montant ou demande annulée)'
+  return p.autoConfirmed ? 'Confirmé automatiquement après le paiement' : ''
+}
+
 const requestLines = computed(() => {
   const r = request.value
   if (!r) return []
   const lines = [
     ['Besoin', BESOIN_LABELS[r.besoin] ?? r.besoin],
     ['Type de locks', LOCK_TYPE_LABELS[r.lockType] ?? r.lockType],
+    ['Méthode de pose', r.besoin === 'creation' ? libelleMethode(r.lockType, r.methode) : null],
     ['Volume', VOLUME_LABELS[r.volume] ?? r.volume],
     ['Longueur', r.longueur],
     ['Prestation', FORMULE_LABELS[r.formule] ?? r.formule],
     ['Délai depuis la pose', DELAI_LABELS[r.delai] ?? r.delai],
     ['État des locks', ETAT_LABELS[r.etat] ?? r.etat],
     ['Inspiration', r.inspirationTitle],
+    ['Profil', r.customerKind === 'nouvelle' ? 'Nouvelle cliente' : r.customerKind === 'ancienne' ? 'Ancienne cliente' : null],
+    ['Consultation', consultationText(r.consultation)],
+    ['Paiement de la consultation', paymentText(r.payment)],
+    ['Référence de transaction', r.payment?.status === 'paid' ? r.payment.transactionId : null],
+    ['Confirmation', confirmationText(r.payment)],
   ]
   return lines.filter(([, value]) => value)
 })

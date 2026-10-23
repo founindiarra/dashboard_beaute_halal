@@ -12,6 +12,7 @@ import ImageField from '@/components/ui/ImageField.vue'
 import PageHeader from '@/components/ui/PageHeader.vue'
 import SearchInput from '@/components/ui/SearchInput.vue'
 import StatusBadge from '@/components/ui/StatusBadge.vue'
+import { COIFFURES_SALON, SITE_URL } from '@/data/coiffuresSalon'
 import { useResource } from '@/composables/useResource'
 import { lockTypes, services as api } from '@/services'
 import { useToastStore } from '@/stores/toasts'
@@ -26,7 +27,7 @@ const toasts = useToastStore()
 const load = async () => {
   const [items, types] = await Promise.all([api.list(), lockTypes.list()])
   // `categories` = les trois types, avec l'identifiant de catégorie attendu par l'API.
-  const categories = types.filter((t) => t.categoryId).map((t) => ({ id: t.categoryId, name: t.name }))
+  const categories = types.filter((t) => t.categoryId).map((t) => ({ id: t.categoryId, slug: t.id, name: t.name }))
   const ids = new Set(categories.map((c) => c.id))
   // La prestation technique des demandes du site n'est pas une coiffure : on ne l'affiche pas.
   return { items: items.filter((i) => ids.has(i.category.id)), categories }
@@ -37,10 +38,19 @@ const { data, loading, error, reload } = useResource(load, { items: [], categori
 const search = ref('')
 const categoryFilter = ref('')
 
-const categoryOptions = computed(() => [
-  { value: '', label: 'Tous les types' },
-  ...(data.value?.categories ?? []).map((c) => ({ value: String(c.id), label: c.name })),
+/** Pastilles de filtre : un type = un clic, avec le nombre de coiffures. */
+const typeChips = computed(() => [
+  { value: '', label: 'Toutes', count: data.value?.items?.length ?? 0 },
+  ...(data.value?.categories ?? []).map((c) => ({
+    value: String(c.id),
+    label: c.name,
+    count: (data.value?.items ?? []).filter((i) => i.category.id === c.id).length,
+  })),
 ])
+
+/** Ce que le site affiche : coiffures actives qui ont une photo. */
+const visibleOnSite = computed(() => (data.value?.items ?? []).filter((i) => i.isActive && i.imageUrl).length)
+const withoutPhoto = computed(() => (data.value?.items ?? []).filter((i) => i.isActive && !i.imageUrl).length)
 
 const filtered = computed(() => {
   const term = search.value.trim().toLowerCase()
@@ -86,7 +96,8 @@ const openEdit = (item) => {
     description: item.description ?? '',
     // On renvoie le chemin relatif d'origine, pas l'URL absolue reconstruite
     // par l'API, pour ne pas figer le domaine dans la base.
-    imageUrl: item.imageUrl ? String(item.imageUrl).replace(/^https?:\/\/[^/]+/, '') : '',
+    // Seules les photos téléversées sont ramenées à leur chemin ; une adresse extérieure est gardée telle quelle.
+    imageUrl: item.imageUrl ? String(item.imageUrl).replace(/^https?:\/\/[^/]+(\/uploads\/)/, '$1') : '',
     isFeatured: item.isFeatured,
     isActive: item.isActive,
     position: item.position,
@@ -141,6 +152,65 @@ const toggleActive = async (item) => {
   }
 }
 
+/* ── Photos et informations réelles du salon ── */
+const norm = (t) => String(t ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim()
+const realNames = new Set(COIFFURES_SALON.map((c) => norm(c.title)))
+/** Les coiffures réelles du salon (celles du site) pas encore enregistrées ici. */
+const missingReal = computed(() => {
+  const have = new Set((data.value?.items ?? []).map((i) => norm(i.name)))
+  return COIFFURES_SALON.filter((c) => !have.has(norm(c.title)))
+})
+/** Coiffures actives qui ne sont pas celles du salon (photos d'exemple, anciennes entrées). */
+const otherActive = computed(() => (data.value?.items ?? []).filter((i) => i.isActive && !realNames.has(norm(i.name))))
+
+const importOpen = ref(false)
+const hideOthers = ref(true)
+const importing = ref(false)
+const importDone = ref(0)
+const importSalon = async () => {
+  const bySlug = new Map((data.value?.categories ?? []).map((c) => [c.slug, c.id]))
+  const toHide = hideOthers.value ? [...otherActive.value] : []
+  importing.value = true
+  importDone.value = 0
+  let failed = 0
+  try {
+    for (const c of missingReal.value) {
+      const categoryId = bySlug.get(c.typeId)
+      if (!categoryId) {
+        failed += 1
+        continue
+      }
+      try {
+        await api.create({
+          categoryId,
+          name: c.title,
+          description: c.description,
+          imageUrl: `${SITE_URL}/images/coiffures/${c.slug}.webp`,
+          isFeatured: Boolean(c.featured),
+          isActive: true,
+          position: COIFFURES_SALON.indexOf(c) + 1,
+        })
+        importDone.value += 1
+      } catch {
+        failed += 1
+      }
+    }
+    for (const item of toHide) {
+      try {
+        await api.update(item.id, { isActive: false })
+      } catch {
+        failed += 1
+      }
+    }
+    importOpen.value = false
+    await reload()
+    if (failed) toasts.error(`${importDone.value} coiffures ajoutées, ${failed} opération(s) en échec : relancez pour terminer.`)
+    else toasts.success(`${importDone.value} coiffures du salon ajoutées${toHide.length ? `, ${toHide.length} autres masquées` : ''}.`)
+  } finally {
+    importing.value = false
+  }
+}
+
 /* ── Suppression ── */
 const confirmTarget = ref(null)
 const remove = async () => {
@@ -164,115 +234,145 @@ const remove = async () => {
   <div class="flex flex-col gap-5">
     <PageHeader
       title="Prestations"
-      subtitle="Les coiffures du salon : elles alimentent la page « Nos coiffures » du site. Le prix se fixe à la confirmation du rendez-vous."
+      subtitle="Tout ce que montre la page « Nos coiffures » du site : photo, nom, type de locks, description, mise en avant. Ajoutez ou modifiez ici ; le prix se fixe à la confirmation du rendez-vous."
     >
       <template #actions>
         <BaseButton size="sm" @click="openCreate">
           <AdminIcon name="plus" class="h-3.5 w-3.5" />
-          Nouvelle coiffure
+          Ajouter une coiffure
         </BaseButton>
       </template>
     </PageHeader>
 
-    <div class="card flex flex-col gap-3 p-3.5 sm:flex-row sm:items-end">
-      <SearchInput v-model="search" placeholder="Nom, description…" />
-      <div class="sm:w-56">
-        <BaseField v-model="categoryFilter" label="Type de locks" :options="categoryOptions" />
+    <!-- Photos et informations réelles du salon -->
+    <section
+      v-if="!loading && !error && data && missingReal.length"
+      class="card flex flex-col gap-3 border-gold/40 bg-gold/5 p-4 sm:flex-row sm:items-center sm:justify-between"
+    >
+      <div class="max-w-2xl">
+        <h2 class="font-display text-lg text-cocoa-dark">
+          Les vraies photos du salon ne sont pas toutes ici ({{ COIFFURES_SALON.length - missingReal.length }} / {{ COIFFURES_SALON.length }})
+        </h2>
+        <p class="mt-1 text-sm text-muted">
+          Le site public montre {{ COIFFURES_SALON.length }} réalisations réelles de Beauté Halal, avec leur nom et leur description.
+          Mettez-les dans cette page en un clic : vous pourrez ensuite tout modifier, masquer ou compléter.
+        </p>
       </div>
+      <BaseButton @click="importOpen = true">Mettre les photos réelles du salon</BaseButton>
+    </section>
+
+    <!-- Résumé : ce que le site affiche -->
+    <section v-if="data?.items?.length" class="grid grid-cols-3 gap-3">
+      <div class="card px-4 py-3">
+        <p class="text-xs text-muted">Coiffures</p>
+        <p class="font-display text-2xl text-cocoa-dark">{{ data.items.length }}</p>
+      </div>
+      <div class="card px-4 py-3">
+        <p class="text-xs text-muted">Visibles sur le site</p>
+        <p class="font-display text-2xl text-cocoa-dark">{{ visibleOnSite }}</p>
+      </div>
+      <div class="card px-4 py-3" :class="withoutPhoto ? 'border-warn/40' : ''">
+        <p class="text-xs text-muted">Actives sans photo</p>
+        <p class="font-display text-2xl" :class="withoutPhoto ? 'text-warn' : 'text-cocoa-dark'">{{ withoutPhoto }}</p>
+      </div>
+    </section>
+
+    <div class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+      <div class="flex flex-wrap gap-2" role="group" aria-label="Filtrer par type de locks">
+        <button
+          v-for="chip in typeChips"
+          :key="chip.value"
+          type="button"
+          class="rounded-full border px-3.5 py-1.5 text-sm transition-colors"
+          :class="
+            categoryFilter === chip.value
+              ? 'border-cocoa-dark bg-cocoa-dark text-white'
+              : 'border-line bg-white text-cocoa hover:border-gold hover:text-gold'
+          "
+          :aria-pressed="categoryFilter === chip.value"
+          @click="categoryFilter = chip.value"
+        >
+          {{ chip.label }}
+          <span class="ml-1 text-xs opacity-70">{{ chip.count }}</span>
+        </button>
+      </div>
+      <div class="lg:w-72"><SearchInput v-model="search" placeholder="Nom, description…" /></div>
     </div>
 
-    <section class="card overflow-hidden">
-      <DataState
-        :loading="loading"
-        :error="error"
-        :empty="!filtered.length"
-        loading-label="Chargement des prestations…"
-        :empty-label="
-          search || categoryFilter
-            ? 'Aucune coiffure ne correspond.'
-            : 'Aucune coiffure enregistrée.'
-        "
-        @retry="reload"
-      >
-        <div class="table-scroll">
-          <table class="table">
-            <thead>
-              <tr>
-                <th class="w-14"><span class="sr-only">Image</span></th>
-                <th>Coiffure</th>
-                <th class="hidden sm:table-cell">Type de locks</th>
-                <th>Statut</th>
-                <th class="w-24 text-right">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr v-for="item in filtered" :key="item.id">
-                <td>
-                  <div
-                    class="grid h-10 w-10 place-items-center overflow-hidden rounded-md bg-ivory"
-                  >
-                    <img
-                      v-if="item.imageUrl"
-                      :src="item.imageUrl"
-                      alt=""
-                      class="h-full w-full object-cover"
-                    />
-                    <AdminIcon v-else name="image" class="h-4 w-4 text-sand-dark" />
-                  </div>
-                </td>
-                <td class="min-w-[11rem]">
-                  <span class="block text-cocoa-dark">{{ item.name }}</span>
-                  <span class="block max-w-[22rem] truncate text-xs text-muted">
-                    {{ item.description || '—' }}
-                  </span>
-                </td>
-                <td class="hidden sm:table-cell">{{ item.category.name }}</td>
-                <td>
-                  <div class="flex flex-wrap items-center gap-1">
-                    <StatusBadge
-                      :label="item.isActive ? 'Active' : 'Inactive'"
-                      :tone="item.isActive ? 'ok' : 'neutral'"
-                    />
-                    <StatusBadge v-if="item.isFeatured" label="En avant" tone="info" />
-                  </div>
-                </td>
-                <td>
-                  <div class="flex items-center justify-end gap-0.5">
-                    <button
-                      type="button"
-                      class="grid h-8 w-8 place-items-center rounded-md text-muted transition-colors hover:bg-ivory hover:text-cocoa-dark"
-                      :aria-label="item.isActive ? 'Désactiver' : 'Activer'"
-                      :title="item.isActive ? 'Désactiver' : 'Activer'"
-                      @click="toggleActive(item)"
-                    >
-                      <AdminIcon :name="item.isActive ? 'eye-off' : 'eye'" class="h-4 w-4" />
-                    </button>
-                    <button
-                      type="button"
-                      class="grid h-8 w-8 place-items-center rounded-md text-muted transition-colors hover:bg-ivory hover:text-cocoa-dark"
-                      aria-label="Modifier"
-                      title="Modifier"
-                      @click="openEdit(item)"
-                    >
-                      <AdminIcon name="edit" class="h-4 w-4" />
-                    </button>
-                    <button
-                      type="button"
-                      class="grid h-8 w-8 place-items-center rounded-md text-muted transition-colors hover:bg-danger-bg hover:text-danger"
-                      aria-label="Supprimer"
-                      title="Supprimer"
-                      @click="confirmTarget = item"
-                    >
-                      <AdminIcon name="trash" class="h-4 w-4" />
-                    </button>
-                  </div>
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </DataState>
-    </section>
+    <DataState
+      :loading="loading"
+      :error="error"
+      :empty="!filtered.length"
+      loading-label="Chargement des coiffures…"
+      :empty-label="search || categoryFilter ? 'Aucune coiffure ne correspond.' : 'Aucune coiffure enregistrée.'"
+      empty-hint="Ajoutez une coiffure avec une photo : elle apparaît sur la page « Nos coiffures » du site."
+      @retry="reload"
+    >
+      <ul class="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
+        <li
+          v-for="item in filtered"
+          :key="item.id"
+          class="card group flex flex-col overflow-hidden"
+          :class="item.isActive ? '' : 'opacity-70'"
+        >
+          <button type="button" class="relative block aspect-[4/5] w-full overflow-hidden bg-ivory text-left" @click="openEdit(item)">
+            <img
+              v-if="item.imageUrl"
+              :src="item.imageUrl"
+              :alt="item.name"
+              loading="lazy"
+              class="h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.04]"
+            />
+            <span v-else class="grid h-full w-full place-items-center text-sand-dark">
+              <span class="flex flex-col items-center gap-1 text-xs">
+                <AdminIcon name="image" class="h-6 w-6" />
+                Pas de photo
+              </span>
+            </span>
+            <span class="absolute left-2 top-2 flex flex-wrap gap-1">
+              <StatusBadge v-if="!item.isActive" label="Masquée" tone="neutral" />
+              <StatusBadge v-if="item.isFeatured" label="En avant" tone="info" />
+            </span>
+          </button>
+          <div class="flex flex-1 flex-col gap-1 p-3">
+            <p class="text-[0.7rem] uppercase tracking-[0.14em] text-gold">{{ item.category.name }}</p>
+            <h3 class="font-display text-[1.02rem] leading-snug text-cocoa-dark">{{ item.name }}</h3>
+            <p class="line-clamp-2 text-xs text-muted">{{ item.description || 'Pas de description.' }}</p>
+          </div>
+          <div class="flex items-center justify-between border-t border-line px-2 py-1.5">
+            <button
+              type="button"
+              class="flex items-center gap-1.5 rounded-md px-2 py-1 text-xs text-muted transition-colors hover:bg-ivory hover:text-cocoa-dark"
+              :title="item.isActive ? 'Masquer du site' : 'Afficher sur le site'"
+              @click="toggleActive(item)"
+            >
+              <AdminIcon :name="item.isActive ? 'eye' : 'eye-off'" class="h-4 w-4" />
+              {{ item.isActive ? 'Visible' : 'Masquée' }}
+            </button>
+            <div class="flex items-center gap-0.5">
+              <button
+                type="button"
+                class="grid h-8 w-8 place-items-center rounded-md text-muted transition-colors hover:bg-ivory hover:text-cocoa-dark"
+                aria-label="Modifier"
+                title="Modifier"
+                @click="openEdit(item)"
+              >
+                <AdminIcon name="edit" class="h-4 w-4" />
+              </button>
+              <button
+                type="button"
+                class="grid h-8 w-8 place-items-center rounded-md text-muted transition-colors hover:bg-danger-bg hover:text-danger"
+                aria-label="Supprimer"
+                title="Supprimer"
+                @click="confirmTarget = item"
+              >
+                <AdminIcon name="trash" class="h-4 w-4" />
+              </button>
+            </div>
+          </div>
+        </li>
+      </ul>
+    </DataState>
 
     <!-- ── Formulaire ── -->
     <BaseModal
@@ -337,6 +437,27 @@ const remove = async () => {
         </BaseButton>
         <BaseButton :loading="busy" @click="save">
           {{ editing ? 'Enregistrer' : 'Enregistrer la coiffure' }}
+        </BaseButton>
+      </template>
+    </BaseModal>
+
+    <BaseModal :open="importOpen" title="Mettre les photos réelles du salon" @close="importOpen = false">
+      <div class="flex flex-col gap-4 text-sm text-cocoa">
+        <p>
+          <strong>{{ missingReal.length }}</strong> coiffure(s) réelle(s) du salon vont être ajoutées, avec leur photo, leur nom,
+          leur type de locks et leur description. Celles déjà présentes ne sont pas dupliquées.
+        </p>
+        <BaseToggle
+          v-if="otherActive.length"
+          v-model="hideOthers"
+          :label="`Masquer les ${otherActive.length} autres coiffures actuellement visibles sur le site`"
+          hint="Ce sont les photos qui ne sont pas celles du salon. Elles ne sont pas supprimées : vous pouvez les réafficher une à une."
+        />
+      </div>
+      <template #footer>
+        <BaseButton variant="secondary" :disabled="importing" @click="importOpen = false">Annuler</BaseButton>
+        <BaseButton :loading="importing" @click="importSalon">
+          {{ importing ? `${importDone} / ${missingReal.length}…` : 'Mettre les photos du salon' }}
         </BaseButton>
       </template>
     </BaseModal>
