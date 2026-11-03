@@ -12,7 +12,6 @@ import StatusBadge from '@/components/ui/StatusBadge.vue'
 import { agents as agentsApi, offices as officesApi, operations as api } from '@/services'
 import { useResource } from '@/composables/useResource'
 import {
-  OPERATION_STATUSES,
   addDays,
   formatDateShort,
   formatPrice,
@@ -41,26 +40,15 @@ const ouvrirFiche = (item, evenement) => {
   router.push(ficheLink(item))
 }
 
-/**
- * Une demande du site simplement « contactée » n'a ni heure ni prix : elle
- * n'a pas encore de fiche de traitement. Elle se gère dans « Rendez-vous ».
- */
-const ficheLink = (item) =>
-  item.status === 'contacted'
-    ? { name: 'appointments', query: { search: item.reference } }
-    : { name: 'operation', params: { id: item.id } }
+const ficheLink = (item) => ({ name: 'operation', params: { id: item.id } })
 
 /**
- * Rendez-vous confirmés — la page de travail de la journée.
+ * Rendez-vous terminés — les prestations faites, les plus récentes d'abord.
  *
- * Elle prend la suite de « Rendez-vous », qui sert à décider des demandes.
- * Ici, tout est déjà décidé : il s'agit d'accueillir, d'installer, de faire
- * et d'encaisser. D'où les quatre statuts retenus et aucun autre —
- * confirmé, cliente présente, prestation en cours, prestation terminée.
- *
- * Les rendez-vous annulés, refusés et non honorés restent consultables
- * depuis le filtre de statut, mais ne s'affichent pas par défaut : ils ne
- * demandent plus rien à personne.
+ * Tout ce qui est encore à décider ou à traiter (en attente, contacté,
+ * confirmé, arrivée, en cours, annulé, refusé, absente) se gère depuis
+ * « Rendez-vous ». Ici, uniquement le statut « Terminé » : on y retrouve la
+ * fiche, le paiement, le reçu et les documents.
  */
 const rows = ref([])
 const meta = ref(null)
@@ -72,7 +60,6 @@ const { data: agents } = useResource(agentsApi.list, [])
 
 const filters = ref({
   search: '',
-  status: '',
   periode: 'all',
   from: '',
   to: '',
@@ -80,14 +67,6 @@ const filters = ref({
   agentId: '',
   page: 1,
 })
-
-const STATUS_OPTIONS = [
-  { value: '', label: 'Tous les statuts à traiter' },
-  ...[...OPERATION_STATUSES, 'contacted'].map((value) => ({ value, label: statusOf(value).label })),
-  { value: 'cancelled', label: 'Annulé' },
-  { value: 'rejected', label: 'Refusé' },
-  { value: 'no_show', label: 'Absente' },
-]
 
 const PERIODES = [
   { value: 'today', label: 'Aujourd’hui' },
@@ -151,7 +130,6 @@ const hasFilters = computed(
   () =>
     Boolean(
       filters.value.search ||
-      filters.value.status ||
       filters.value.officeId ||
       filters.value.agentId,
     ) || filters.value.periode !== 'all',
@@ -163,12 +141,12 @@ const load = async () => {
   try {
     const result = await api.list({
       search: filters.value.search || undefined,
-      status: filters.value.status || undefined,
+      scope: 'completed',
       from: filters.value.from || undefined,
       to: filters.value.to || undefined,
       officeId: filters.value.officeId || undefined,
       agentId: filters.value.agentId || undefined,
-      order: 'asc',
+      order: 'desc',
       page: filters.value.page,
       limit: 25,
     })
@@ -196,7 +174,6 @@ watch(
 
 watch(
   () => [
-    filters.value.status,
     filters.value.from,
     filters.value.to,
     filters.value.officeId,
@@ -216,7 +193,6 @@ const reinitialiser = () => {
   const [from, to] = bornesDe('all')
   filters.value = {
     search: '',
-    status: '',
     periode: 'all',
     from,
     to,
@@ -231,13 +207,13 @@ const reinitialiser = () => {
 <template>
   <div class="flex flex-col gap-5">
     <PageHeader
-      title="Rendez-vous confirmés"
-      subtitle="Accueil, installation, prestation, encaissement. Les demandes en attente se décident depuis « Rendez-vous »."
+      title="Rendez-vous terminés"
+      subtitle="Les prestations terminées, des plus récentes aux plus anciennes. Le reste se gère depuis « Rendez-vous »."
     >
       <template #actions>
         <BaseButton size="sm" variant="secondary" :to="{ name: 'appointments' }">
           <AdminIcon name="calendar" class="h-3.5 w-3.5" />
-          Toutes les demandes
+          Rendez-vous à gérer
         </BaseButton>
       </template>
     </PageHeader>
@@ -268,8 +244,7 @@ const reinitialiser = () => {
           label="Rechercher une cliente"
           placeholder="Nom, référence, e-mail, téléphone…"
         />
-        <div class="grid flex-1 gap-3 sm:grid-cols-3">
-          <BaseField v-model="filters.status" label="Statut" :options="STATUS_OPTIONS" />
+        <div class="grid flex-1 gap-3 sm:grid-cols-2">
           <BaseField v-model="filters.officeId" label="Bureau" :options="officeOptions" />
           <BaseField v-model="filters.agentId" label="Agent" :options="agentOptions" />
         </div>
@@ -303,16 +278,16 @@ const reinitialiser = () => {
         :empty-label="
           hasFilters
             ? 'Aucun rendez-vous ne correspond à ces filtres.'
-            : 'Aucun rendez-vous confirmé pour aujourd’hui.'
+            : 'Aucun rendez-vous terminé pour le moment.'
         "
-        empty-hint="Les rendez-vous apparaissent ici dès qu’ils sont confirmés depuis la page « Rendez-vous »."
+        empty-hint="Un rendez-vous apparaît ici dès que sa prestation est marquée « Terminée »."
         @retry="load"
       >
         <div class="table-scroll">
           <table class="table">
             <thead>
               <tr>
-                <th>Heure</th>
+                <th>Date</th>
                 <th>Cliente</th>
                 <th class="hidden lg:table-cell">Prestation</th>
                 <th class="hidden md:table-cell">Bureau · Agent</th>
@@ -329,8 +304,8 @@ const reinitialiser = () => {
                 @click="ouvrirFiche(item, $event)"
               >
                 <td class="whitespace-nowrap">
-                  <span class="block font-medium text-cocoa-dark">{{ item.timeToSet ? 'Heure à fixer' : item.time }}</span>
-                  <span class="block text-xs text-muted">{{ formatDateShort(item.date) }}</span>
+                  <span class="block font-medium text-cocoa-dark">{{ formatDateShort(item.date) }}</span>
+                  <span class="block text-xs text-muted">{{ item.time }}</span>
                 </td>
                 <td class="min-w-[10rem]">
                   <RouterLink

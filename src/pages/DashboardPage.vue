@@ -125,7 +125,7 @@ const cards = computed(() => {
       label: 'Rendez-vous confirmés à traiter',
       value: rdv?.confirmed,
       icon: 'check',
-      to: { name: 'confirmed' },
+      to: { name: 'appointments', query: { status: 'confirmed' } },
     },
   ])
 })

@@ -12,9 +12,24 @@ import DataState from '@/components/ui/DataState.vue'
 import PageHeader from '@/components/ui/PageHeader.vue'
 import SearchInput from '@/components/ui/SearchInput.vue'
 import StatusBadge from '@/components/ui/StatusBadge.vue'
-import { appointments as api } from '@/services'
+import { useResource } from '@/composables/useResource'
+import {
+  agents as agentsApi,
+  appointments as api,
+  offices as officesApi,
+  operations as operationsApi,
+} from '@/services'
 import { useToastStore } from '@/stores/toasts'
-import { APPOINTMENT_STATUSES, addDays, formatDateShort, toDateKey } from '@/utils/format'
+import {
+  APPOINTMENT_STATUSES,
+  addDays,
+  formatDateShort,
+  formatPrice,
+  initialsOf,
+  paymentStatusOf,
+  toDateKey,
+  toLocalDate,
+} from '@/utils/format'
 
 const route = useRoute()
 const router = useRouter()
@@ -26,11 +41,20 @@ const meta = ref(null)
 const loading = ref(false)
 const error = ref(null)
 
+const { data: offices } = useResource(officesApi.list, [])
+const { data: agents } = useResource(agentsApi.list, [])
+
+const fromQuery = typeof route.query.from === 'string' ? route.query.from : ''
+const toQuery = typeof route.query.to === 'string' ? route.query.to : ''
+
 const filters = ref({
   search: typeof route.query.search === 'string' ? route.query.search : '',
   status: typeof route.query.status === 'string' ? route.query.status : '',
-  from: typeof route.query.from === 'string' ? route.query.from : '',
-  to: typeof route.query.to === 'string' ? route.query.to : '',
+  periode: fromQuery || toQuery ? 'custom' : 'all',
+  from: fromQuery,
+  to: toQuery,
+  officeId: '',
+  agentId: '',
   page: 1,
 })
 
@@ -56,13 +80,90 @@ const onWalkInCreated = async (cree) => {
 
 const STATUS_OPTIONS = [
   { value: '', label: 'Tous les statuts' },
-  ...Object.entries(APPOINTMENT_STATUSES).map(([value, { label }]) => ({ value, label })),
+  // Le statut « Terminé » a sa propre page : « Rendez-vous terminés ».
+  ...Object.entries(APPOINTMENT_STATUSES)
+    .filter(([value]) => value !== 'completed')
+    .map(([value, { label }]) => ({ value, label })),
 ]
+
+const PERIODES = [
+  { value: 'today', label: 'Aujourd’hui' },
+  { value: 'tomorrow', label: 'Demain' },
+  { value: 'week', label: 'Cette semaine' },
+  { value: 'month', label: 'Ce mois' },
+  { value: 'all', label: 'Toutes les dates' },
+  { value: 'custom', label: 'Période personnalisée' },
+]
+
+/** Bornes d'une période nommée ; la semaine commence le lundi. */
+const bornesDe = (periode) => {
+  const aujourdhui = toDateKey()
+  if (periode === 'today') return [aujourdhui, aujourdhui]
+  if (periode === 'tomorrow') {
+    const demain = addDays(aujourdhui, 1)
+    return [demain, demain]
+  }
+  if (periode === 'week') {
+    const d = toLocalDate(aujourdhui)
+    const lundi = addDays(aujourdhui, -((d.getDay() + 6) % 7))
+    return [lundi, addDays(lundi, 6)]
+  }
+  if (periode === 'month') {
+    const d = toLocalDate(aujourdhui)
+    return [
+      toDateKey(new Date(d.getFullYear(), d.getMonth(), 1)),
+      toDateKey(new Date(d.getFullYear(), d.getMonth() + 1, 0)),
+    ]
+  }
+  return ['', '']
+}
+
+const choisirPeriode = (periode) => {
+  filters.value.periode = periode
+  if (periode === 'custom') return
+  const [from, to] = bornesDe(periode)
+  filters.value.from = from
+  filters.value.to = to
+  filters.value.page = 1
+}
+
+const officeOptions = computed(() => [
+  { value: '', label: 'Tous les bureaux' },
+  ...(offices.value ?? []).map((item) => ({
+    value: String(item.id),
+    label: `${item.number} — ${item.name}`,
+  })),
+])
+
+const agentOptions = computed(() => [
+  { value: '', label: 'Tous les agents' },
+  ...(agents.value ?? []).map((item) => ({ value: String(item.id), label: item.name })),
+])
+
+/**
+ * Les demandes qui attendent une décision s'ouvrent dans la fenêtre de
+ * décision ; tous les autres rendez-vous ouvrent leur fiche de traitement
+ * (accueil, prestation, encaissement, agents, documents).
+ */
+const needsDecision = (item) => ['pending', 'contacted'].includes(item.status)
+const ouvrirLigne = (item, evenement) => {
+  if (evenement?.target?.closest?.('a, button')) return
+  if (needsDecision(item)) open(item)
+  else router.push({ name: 'operation', params: { id: item.id } })
+}
 
 const statusOf = (status) => APPOINTMENT_STATUSES[status] ?? { label: status, tone: 'neutral' }
 
-const hasFilters = computed(() =>
-  Boolean(filters.value.search || filters.value.status || filters.value.from || filters.value.to),
+const hasFilters = computed(
+  () =>
+    Boolean(
+      filters.value.search ||
+      filters.value.status ||
+      filters.value.officeId ||
+      filters.value.agentId ||
+      filters.value.from ||
+      filters.value.to,
+    ),
 )
 
 /** En vue calendrier on charge le mois entier, sinon une page paginée. */
@@ -76,13 +177,17 @@ const load = async () => {
         : {
             search: filters.value.search || undefined,
             status: filters.value.status || undefined,
+            scope: 'active',
             from: filters.value.from || undefined,
             to: filters.value.to || undefined,
+            officeId: filters.value.officeId || undefined,
+            agentId: filters.value.agentId || undefined,
             order: 'desc',
             page: filters.value.page,
             limit: 25,
           }
-    const result = await api.list(params)
+    const result =
+      view.value === 'calendar' ? await api.list(params) : await operationsApi.list(params)
     rows.value = result.rows
     meta.value = result.meta
   } catch (caught) {
@@ -123,7 +228,13 @@ watch(
 )
 
 watch(
-  () => [filters.value.status, filters.value.from, filters.value.to],
+  () => [
+    filters.value.status,
+    filters.value.from,
+    filters.value.to,
+    filters.value.officeId,
+    filters.value.agentId,
+  ],
   () => {
     filters.value.page = 1
     if (view.value === 'list') load()
@@ -139,16 +250,18 @@ watch([monthStart, monthEnd], () => {
 load()
 
 const resetFilters = () => {
-  filters.value = { search: '', status: '', from: '', to: '', page: 1 }
+  filters.value = {
+    search: '',
+    status: '',
+    periode: 'all',
+    from: '',
+    to: '',
+    officeId: '',
+    agentId: '',
+    page: 1,
+  }
   router.replace({ query: {} })
   load()
-}
-
-const quickRange = (days) => {
-  const start = toDateKey()
-  filters.value.from = start
-  filters.value.to = days === 0 ? start : addDays(start, days)
-  filters.value.page = 1
 }
 
 /* ── Actions ── */
@@ -177,7 +290,7 @@ const onDeleted = () => {
   <div class="flex flex-col gap-5">
     <PageHeader
       title="Rendez-vous"
-      subtitle="Les réservations du site public et celles prises au comptoir."
+      subtitle="Toutes les réservations (site public et comptoir) sauf les terminées, des plus récentes aux plus anciennes."
     >
       <template #actions>
         <BaseButton size="sm" @click="walkInOpen = true">
@@ -209,36 +322,44 @@ const onDeleted = () => {
 
     <!-- ── Filtres (vue liste) ── -->
     <div v-if="view === 'list'" class="card flex flex-col gap-3 p-3.5">
+      <div class="flex flex-wrap items-center gap-1.5">
+        <button
+          v-for="periode in PERIODES"
+          :key="periode.value"
+          type="button"
+          class="rounded-full border px-3 py-1 text-xs transition-colors"
+          :class="
+            filters.periode === periode.value
+              ? 'border-cocoa-dark bg-cocoa-dark text-cream'
+              : 'border-line text-cocoa hover:border-gold hover:text-gold'
+          "
+          :aria-pressed="filters.periode === periode.value"
+          @click="choisirPeriode(periode.value)"
+        >
+          {{ periode.label }}
+        </button>
+      </div>
+
       <div class="flex flex-col gap-3 lg:flex-row lg:items-end">
         <SearchInput
           v-model="filters.search"
           placeholder="Référence, nom, e-mail, téléphone…"
           label="Rechercher un rendez-vous"
         />
-
         <div class="grid flex-1 gap-3 sm:grid-cols-3">
           <BaseField v-model="filters.status" label="Statut" :options="STATUS_OPTIONS" />
-          <BaseField v-model="filters.from" label="Du" type="date" />
-          <BaseField v-model="filters.to" label="Au" type="date" />
+          <BaseField v-model="filters.officeId" label="Bureau" :options="officeOptions" />
+          <BaseField v-model="filters.agentId" label="Agent" :options="agentOptions" />
         </div>
       </div>
 
-      <div class="flex flex-wrap items-center gap-2">
+      <div v-if="filters.periode === 'custom'" class="grid gap-3 sm:grid-cols-2 lg:max-w-md">
+        <BaseField v-model="filters.from" label="Du" type="date" />
+        <BaseField v-model="filters.to" label="Au" type="date" />
+      </div>
+
+      <div v-if="hasFilters">
         <button
-          v-for="preset in [
-            { label: 'Aujourd’hui', days: 0 },
-            { label: '7 prochains jours', days: 7 },
-            { label: '30 prochains jours', days: 30 },
-          ]"
-          :key="preset.label"
-          type="button"
-          class="rounded-full border border-line px-3 py-1 text-xs text-cocoa transition-colors hover:border-gold hover:text-gold"
-          @click="quickRange(preset.days)"
-        >
-          {{ preset.label }}
-        </button>
-        <button
-          v-if="hasFilters"
           type="button"
           class="inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs text-muted transition-colors hover:text-danger"
           @click="resetFilters"
@@ -277,28 +398,41 @@ const onDeleted = () => {
             <thead>
               <tr>
                 <th>Date</th>
-                <th>Heure</th>
                 <th>Cliente</th>
                 <th class="hidden md:table-cell">Contact</th>
                 <th class="hidden lg:table-cell">Prestation</th>
+                <th class="hidden md:table-cell">Bureau · Agent</th>
                 <th>Statut</th>
+                <th class="hidden sm:table-cell">Paiement</th>
                 <th class="w-10"><span class="sr-only">Détail</span></th>
               </tr>
             </thead>
             <tbody>
-              <tr v-for="item in rows" :key="item.id" class="cursor-pointer" @click="open(item)">
-                <td class="whitespace-nowrap">{{ formatDateShort(item.date) }}</td>
-                <td class="whitespace-nowrap font-medium text-cocoa-dark">
-                  <span v-if="item.timeToSet" class="text-xs font-normal italic text-muted">à fixer</span>
-                  <template v-else>{{ item.time }}</template>
-                </td>
-                <td class="min-w-[9rem]">
-                  <span class="block text-cocoa-dark">
-                    {{ item.customer.firstName }} {{ item.customer.lastName }}
-                  </span>
+              <tr
+                v-for="item in rows"
+                :key="item.id"
+                class="cursor-pointer"
+                @click="ouvrirLigne(item, $event)"
+              >
+                <td class="whitespace-nowrap">
+                  <span class="block font-medium text-cocoa-dark">{{ formatDateShort(item.date) }}</span>
                   <span class="block text-xs text-muted">
-                    {{ item.reference }}
-                    <span v-if="item.source === 'site-v3'" class="ml-1 rounded bg-gold/15 px-1.5 py-px text-[0.6rem] font-medium uppercase tracking-wider text-gold">Site</span>
+                    <template v-if="item.timeToSet"><em>heure à fixer</em></template>
+                    <template v-else>{{ item.time }}</template>
+                  </span>
+                </td>
+                <td class="min-w-[10rem]">
+                  <span class="flex items-center gap-2.5">
+                    <span class="avatar">{{ initialsOf(item.customer) }}</span>
+                    <span class="min-w-0">
+                      <span class="block truncate text-cocoa-dark">
+                        {{ item.customer.firstName }} {{ item.customer.lastName }}
+                      </span>
+                      <span class="block text-xs text-muted">
+                        {{ item.reference }}
+                        <span v-if="item.source === 'site-v3'" class="ml-1 rounded bg-gold/15 px-1.5 py-px text-[0.6rem] font-medium uppercase tracking-wider text-gold">Site</span>
+                      </span>
+                    </span>
                   </span>
                 </td>
                 <td class="hidden md:table-cell">
@@ -307,16 +441,33 @@ const onDeleted = () => {
                     {{ item.customer.email }}
                   </span>
                 </td>
-                <td class="hidden max-w-[15rem] truncate lg:table-cell">{{ item.service.name }}</td>
+                <td class="hidden max-w-[15rem] truncate lg:table-cell">{{ item.serviceName }}</td>
+                <td class="hidden md:table-cell">
+                  <span class="block text-xs text-cocoa-dark">
+                    {{ item.office ? `${item.office.number} — ${item.office.name}` : 'Non attribué' }}
+                  </span>
+                  <span class="block text-xs text-muted">{{ item.agentName || 'Aucun agent' }}</span>
+                </td>
                 <td>
                   <StatusBadge
                     :label="statusOf(item.status).label"
                     :tone="statusOf(item.status).tone"
                   />
-                  <span v-if="item.request?.payment?.needsReview" class="mt-1 block"><StatusBadge label="Payé · à régulariser" tone="danger" /></span>
-                  <span v-else-if="item.request?.payment?.status === 'paid'" class="mt-1 block text-[0.7rem] text-muted">
-                    {{ item.request.payment.autoConfirmed ? 'Payé · confirmé auto' : 'Payé' }}
-                  </span>
+                </td>
+                <td class="hidden sm:table-cell">
+                  <template v-if="needsDecision(item)">
+                    <span class="text-xs text-muted">—</span>
+                  </template>
+                  <template v-else>
+                    <StatusBadge
+                      :label="paymentStatusOf(item.totals.status).label"
+                      :tone="paymentStatusOf(item.totals.status).tone"
+                    />
+                    <span class="mt-0.5 block text-[0.7rem] text-muted">
+                      {{ formatPrice(item.totals.paid, item.totals.currency) }} /
+                      {{ formatPrice(item.totals.payable, item.totals.currency) }}
+                    </span>
+                  </template>
                 </td>
                 <td class="text-right">
                   <AdminIcon name="chevron-right" class="h-4 w-4 text-sand-dark" />

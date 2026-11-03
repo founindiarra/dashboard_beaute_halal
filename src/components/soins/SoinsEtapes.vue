@@ -110,7 +110,7 @@ const save = async () => {
 
         <section class="card flex flex-col gap-3 p-4">
           <header>
-            <h2 class="font-display text-xl text-cocoa-dark">Faire ou ignorer la consultation</h2>
+            <h2 class="section-title">Faire ou ignorer la consultation</h2>
             <p class="text-xs text-muted">Première question posée à la cliente dans « Consultation capillaire ».</p>
           </header>
           <BaseField v-model="catalogue.soins.propose.title" label="Question" @update:model-value="touch" />
@@ -126,7 +126,7 @@ const save = async () => {
 
         <section class="card flex flex-col gap-3 p-4">
           <header>
-            <h2 class="font-display text-xl text-cocoa-dark">A-t-elle déjà des locks ?</h2>
+            <h2 class="section-title">A-t-elle déjà des locks ?</h2>
           </header>
           <BaseField v-model="catalogue.soins.locks.title" label="Question" @update:model-value="touch" />
           <BaseField v-model="catalogue.soins.locks.text" label="Texte" textarea :rows="2" @update:model-value="touch" />
@@ -140,24 +140,22 @@ const save = async () => {
 
         <section class="card flex flex-col gap-3 p-4">
           <header>
-            <h2 class="font-display text-xl text-cocoa-dark">Comment consulter</h2>
+            <h2 class="section-title">Comment consulter</h2>
           </header>
           <BaseField v-model="catalogue.soins.modes.title" label="Question" @update:model-value="touch" />
           <div class="grid gap-3 sm:grid-cols-2">
-            <BaseField v-model="catalogue.soins.modes.telephoneLabel" label="Téléphone : titre" @update:model-value="touch" />
-            <BaseField v-model="catalogue.soins.modes.telephoneHint" label="Téléphone : aide" @update:model-value="touch" />
             <BaseField v-model="catalogue.soins.modes.whatsappLabel" label="WhatsApp : titre" @update:model-value="touch" />
             <BaseField v-model="catalogue.soins.modes.whatsappHint" label="WhatsApp : aide" @update:model-value="touch" />
             <BaseField v-model="catalogue.soins.modes.placeLabel" label="En salon : titre" @update:model-value="touch" />
             <BaseField v-model="catalogue.soins.modes.placeHint" label="En salon : aide" @update:model-value="touch" />
           </div>
-          <BaseField v-model="catalogue.soins.modes.confirmation" label="Message de confirmation (téléphone ou WhatsApp)" textarea :rows="2" @update:model-value="touch" />
+          <BaseField v-model="catalogue.soins.modes.confirmation" label="Message de confirmation (WhatsApp)" textarea :rows="2" @update:model-value="touch" />
         </section>
 
         <section v-for="bloc in BLOCS" :key="bloc.key" class="card flex flex-col gap-3 p-4">
           <header class="flex items-center justify-between gap-3">
             <div>
-              <h2 class="font-display text-xl text-cocoa-dark">Pourquoi une consultation</h2>
+              <h2 class="section-title">Pourquoi une consultation</h2>
               <p class="text-xs text-muted">{{ bloc.label }}</p>
             </div>
             <BaseButton variant="secondary" @click="addPoint(catalogue.soins[bloc.key])">Ajouter un point</BaseButton>

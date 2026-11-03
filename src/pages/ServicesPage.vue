@@ -14,6 +14,7 @@ import SearchInput from '@/components/ui/SearchInput.vue'
 import StatusBadge from '@/components/ui/StatusBadge.vue'
 import { COIFFURES_SALON, SITE_URL } from '@/data/coiffuresSalon'
 import { useResource } from '@/composables/useResource'
+import { deplacer } from '@/directives/sortable'
 import { lockTypes, services as api } from '@/services'
 import { useToastStore } from '@/stores/toasts'
 
@@ -47,6 +48,27 @@ const typeChips = computed(() => [
     count: (data.value?.items ?? []).filter((i) => i.category.id === c.id).length,
   })),
 ])
+
+/* ── Ordre des photos (glisser-déposer) ── */
+/** Réordonner n'a de sens que sur la liste complète : filtre ou recherche actifs = glisser-déposer coupé. */
+const canReorder = computed(() => !search.value.trim() && !categoryFilter.value)
+const savingOrder = ref(false)
+const onReorder = async (from, to) => {
+  if (!canReorder.value || savingOrder.value) return
+  const previous = data.value
+  const items = deplacer(previous.items, from, to)
+  data.value = { ...previous, items } // le changement se voit tout de suite
+  savingOrder.value = true
+  try {
+    await api.reorder(items.map((i) => i.id))
+    toasts.success('Ordre des photos enregistré : le site l’affiche aussitôt.')
+  } catch (caught) {
+    data.value = previous
+    toasts.error(caught?.message || 'Impossible d’enregistrer l’ordre. Réessayez.')
+  } finally {
+    savingOrder.value = false
+  }
+}
 
 /** Ce que le site affiche : coiffures actives qui ont une photo. */
 const visibleOnSite = computed(() => (data.value?.items ?? []).filter((i) => i.isActive && i.imageUrl).length)
@@ -308,7 +330,11 @@ const remove = async () => {
       empty-hint="Ajoutez une coiffure avec une photo : elle apparaît sur la page « Nos coiffures » du site."
       @retry="reload"
     >
-      <ul class="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
+      <p class="mb-2 text-xs text-muted" role="status">
+        <template v-if="canReorder">Astuce : maintenez une photo (appui long sur téléphone) puis glissez-la à l’endroit voulu. L’ordre est le même sur la page « Nos coiffures » du site.</template>
+        <template v-else>Pour changer l’ordre des photos par glisser-déposer, retirez le filtre ou la recherche.</template>
+      </p>
+      <ul v-sortable="{ onReorder, disabled: !canReorder || savingOrder }" class="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5" :class="canReorder ? 'sortable-grab' : ''">
         <li
           v-for="item in filtered"
           :key="item.id"
@@ -466,7 +492,7 @@ const remove = async () => {
       :open="Boolean(confirmTarget)"
       :busy="busy"
       title="Supprimer la coiffure"
-      :message="`« ${confirmTarget?.name} » sera supprimée. Si des rendez-vous l’utilisent, la suppression sera refusée : désactivez-la plutôt.`"
+      :message="`« ${confirmTarget?.name} » sera supprimée définitivement. Les anciens rendez-vous qui l’utilisent sont conservés (nom et prix inchangés).`"
       @confirm="remove"
       @close="confirmTarget = null"
     />

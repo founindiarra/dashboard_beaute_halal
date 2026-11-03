@@ -64,7 +64,7 @@ const ACCES = [
   { key: 'messages', label: 'Messages reçus', hint: 'Formulaire de contact du site' },
   { key: 'catalog', label: 'Contenu', hint: 'Prestations (coiffures), catégories, avis' },
   { key: 'tarifs', label: 'Tarifs du site', hint: 'Prix affichés sur le site' },
-  { key: 'soins', label: 'Soins capillaires', hint: 'Étapes de la prise de rendez-vous, demandes de consultation, historique des clientes' },
+  { key: 'soins', label: 'Consultation capillaire', hint: 'Étapes de la prise de rendez-vous, demandes de consultation, historique des clientes' },
   { key: 'site_texts', label: 'Textes et règles du site', hint: 'Textes, règles et mentions du site public' },
   { key: 'site_photos', label: 'Images des pages', hint: 'Photos et visuels des pages du site public' },
   { key: 'schedule', label: 'Horaires', hint: 'Horaires et fermetures exceptionnelles' },

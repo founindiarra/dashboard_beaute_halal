@@ -6,6 +6,7 @@ import MoneySummary from '@/components/operations/MoneySummary.vue'
 import PaymentPanel from '@/components/operations/PaymentPanel.vue'
 import AdminIcon from '@/components/ui/AdminIcon.vue'
 import BaseButton from '@/components/ui/BaseButton.vue'
+import AgentPicker from '@/components/ui/AgentPicker.vue'
 import BaseField from '@/components/ui/BaseField.vue'
 import BaseModal from '@/components/ui/BaseModal.vue'
 import DataState from '@/components/ui/DataState.vue'
@@ -13,6 +14,7 @@ import StatusBadge from '@/components/ui/StatusBadge.vue'
 import { useResource } from '@/composables/useResource'
 import {
   agents as agentsApi,
+  appointments as appointmentsApi,
   documents as documentsApi,
   offices as officesApi,
   operations as api,
@@ -26,6 +28,7 @@ import {
   formatDuration,
   formatPrice,
   initialsOf,
+  APPOINTMENT_STATUSES,
   paymentStatusOf,
   statusOf,
 } from '@/utils/format'
@@ -69,6 +72,65 @@ const onUpdated = (updated) => {
   operation.value = updated
 }
 
+/* ═══════════ Modifier la date, l'heure et le statut ═══════════ */
+
+const editOpen = ref(false)
+const editSaving = ref(false)
+const editError = ref('')
+const editForcable = ref(false)
+const edit = ref({ date: '', time: '', status: '', notify: false })
+const statusOptions = Object.entries(APPOINTMENT_STATUSES).map(([value, v]) => ({ value, label: v.label }))
+
+const openEdit = () => {
+  edit.value = {
+    date: String(operation.value.date ?? '').slice(0, 10),
+    time: String(operation.value.time ?? '').slice(0, 5),
+    status: operation.value.status,
+    notify: false,
+  }
+  editError.value = ''
+  editForcable.value = false
+  editOpen.value = true
+}
+
+const editChanged = computed(() => {
+  if (!operation.value) return false
+  return (
+    edit.value.date !== String(operation.value.date ?? '').slice(0, 10) ||
+    edit.value.time !== String(operation.value.time ?? '').slice(0, 5) ||
+    edit.value.status !== operation.value.status
+  )
+})
+
+const saveEdit = async ({ force = false } = {}) => {
+  if (!edit.value.date || !edit.value.time) {
+    editError.value = 'Indiquez la date et l’heure.'
+    return
+  }
+  editSaving.value = true
+  editError.value = ''
+  editForcable.value = false
+  try {
+    const current = operation.value
+    const dateOuHeure =
+      edit.value.date !== String(current.date ?? '').slice(0, 10) ||
+      edit.value.time !== String(current.time ?? '').slice(0, 5)
+    if (dateOuHeure) await appointmentsApi.update(current.id, { date: edit.value.date, time: edit.value.time, ...(force ? { force: true } : {}) })
+    if (edit.value.status !== current.status) {
+      await appointmentsApi.setStatus(current.id, edit.value.status, { notify: edit.value.notify })
+    }
+    await reload()
+    editOpen.value = false
+    toasts.success('Rendez-vous mis à jour.')
+  } catch (caught) {
+    editError.value = caught?.message || 'Modification impossible.'
+    editForcable.value = Boolean(caught?.details?.forceable)
+    await reload().catch(() => {})
+  } finally {
+    editSaving.value = false
+  }
+}
+
 /* ═══════════════════════ Avancement ═══════════════════════ */
 
 const ETAPES = [
@@ -99,12 +161,18 @@ const officeOptions = computed(() => [
     .map((item) => ({ value: String(item.id), label: `${item.number} — ${item.name}` })),
 ])
 
-const agentOptions = computed(() => [
-  { value: '', label: 'Aucun agent' },
-  ...(agents.value ?? [])
-    .filter((item) => item.isActive || String(item.id) === String(operation.value?.agent?.id))
+const agentsDeLaPrestation = computed(() => {
+  const liste = operation.value?.agents?.length ? operation.value.agents : operation.value?.agent ? [operation.value.agent] : []
+  return liste.map((a) => String(a.id))
+})
+
+/** Agents actifs (un agent désactivé reste proposé s'il est déjà sur la prestation). */
+const agentOptions = computed(() =>
+  (agents.value ?? [])
+    .filter((item) => item.isActive || agentsDeLaPrestation.value.includes(String(item.id)))
     .map((item) => ({ value: String(item.id), label: `${item.name} — ${item.role}` })),
-])
+)
+const nomsAgents = (ids) => (ids.length ? ids.map((id) => libelleOption(agentOptions.value, id).split(' — ')[0]).join(', ') : 'Aucun agent')
 
 /**
  * L'agent attitré d'un bureau est proposé dès qu'on choisit ce bureau —
@@ -121,7 +189,7 @@ const agentDuBureau = (officeId) => {
 const arrivalOpen = ref(false)
 /** 'saisie' puis 'recap' : rien n'est écrit avant d'avoir été relu. */
 const arrivalStep = ref('saisie')
-const arrivalForm = ref({ officeId: '', staffId: '' })
+const arrivalForm = ref({ officeId: '', staffIds: [] })
 const arrivalError = ref('')
 
 const openArrival = () => {
@@ -129,7 +197,7 @@ const openArrival = () => {
   arrivalStep.value = 'saisie'
   arrivalForm.value = {
     officeId: operation.value?.office ? String(operation.value.office.id) : '',
-    staffId: operation.value?.agent ? String(operation.value.agent.id) : '',
+    staffIds: [...agentsDeLaPrestation.value],
   }
   arrivalOpen.value = true
 }
@@ -139,7 +207,10 @@ watch(
   (officeId) => {
     if (!officeId) return
     // On ne remplace pas un agent déjà choisi à la main.
-    if (!arrivalForm.value.staffId) arrivalForm.value.staffId = agentDuBureau(officeId)
+    if (!arrivalForm.value.staffIds.length) {
+      const attitre = agentDuBureau(officeId)
+      if (attitre) arrivalForm.value.staffIds = [attitre]
+    }
   },
 )
 
@@ -152,7 +223,7 @@ const confirmArrival = async () => {
   try {
     const updated = await api.markPresent(operation.value.id, {
       officeId: arrivalForm.value.officeId ? Number(arrivalForm.value.officeId) : null,
-      staffId: arrivalForm.value.staffId ? Number(arrivalForm.value.staffId) : null,
+      staffIds: arrivalForm.value.staffIds.map(Number),
     })
     onUpdated(updated)
     arrivalOpen.value = false
@@ -167,12 +238,12 @@ const confirmArrival = async () => {
 /* ═══════ Modification du bureau / de l'agent après coup ═══════ */
 
 const editingAssignment = ref(false)
-const assignmentForm = ref({ officeId: '', staffId: '' })
+const assignmentForm = ref({ officeId: '', staffIds: [] })
 
 const openAssignment = () => {
   assignmentForm.value = {
     officeId: operation.value?.office ? String(operation.value.office.id) : '',
-    staffId: operation.value?.agent ? String(operation.value.agent.id) : '',
+    staffIds: [...agentsDeLaPrestation.value],
   }
   editingAssignment.value = true
 }
@@ -180,8 +251,9 @@ const openAssignment = () => {
 watch(
   () => assignmentForm.value.officeId,
   (officeId) => {
-    if (officeId && !assignmentForm.value.staffId) {
-      assignmentForm.value.staffId = agentDuBureau(officeId)
+    if (officeId && !assignmentForm.value.staffIds.length) {
+      const attitre = agentDuBureau(officeId)
+      if (attitre) assignmentForm.value.staffIds = [attitre]
     }
   },
 )
@@ -191,7 +263,7 @@ const saveAssignment = async () => {
   try {
     const updated = await api.assign(operation.value.id, {
       officeId: assignmentForm.value.officeId ? Number(assignmentForm.value.officeId) : null,
-      staffId: assignmentForm.value.staffId ? Number(assignmentForm.value.staffId) : null,
+      staffIds: assignmentForm.value.staffIds.map(Number),
     })
     onUpdated(updated)
     editingAssignment.value = false
@@ -276,7 +348,9 @@ const KIND_LABELS = { proforma: 'Proforma', receipt: 'Reçu' }
 
 const discountLabel = computed(() => DISCOUNT_REASONS[operation.value?.discount?.reason] ?? null)
 
-const retour = () => router.push({ name: 'confirmed' })
+/** Retour vers la liste d'où l'on vient : « terminés » pour une prestation faite, « Rendez-vous » sinon. */
+const listeName = computed(() => (operation.value?.status === 'completed' ? 'completed' : 'appointments'))
+const retour = () => router.push({ name: listeName.value })
 </script>
 
 <template>
@@ -299,11 +373,11 @@ const retour = () => router.push({ name: 'confirmed' })
         <!-- ══ En-tête ══ -->
         <header class="flex flex-col gap-3">
           <RouterLink
-            :to="{ name: 'confirmed' }"
+            :to="{ name: listeName }"
             class="inline-flex w-fit items-center gap-1.5 text-xs text-muted transition-colors hover:text-cocoa-dark"
           >
             <AdminIcon name="arrow-left" class="h-3.5 w-3.5" />
-            Rendez-vous confirmés
+            {{ operation.status === 'completed' ? 'Rendez-vous terminés' : 'Rendez-vous' }}
           </RouterLink>
 
           <div class="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
@@ -440,7 +514,10 @@ const retour = () => router.push({ name: 'confirmed' })
 
             <!-- ── Rendez-vous et prestation ── -->
             <section class="card p-4">
-              <h2 class="mb-3 text-xs uppercase tracking-[0.1em] text-muted">Rendez-vous</h2>
+              <div class="mb-3 flex items-center justify-between gap-2">
+                <h2 class="text-xs uppercase tracking-[0.1em] text-muted">Rendez-vous</h2>
+                <BaseButton variant="subtle" @click="openEdit">Modifier date, heure, statut</BaseButton>
+              </div>
               <dl class="grid gap-x-6 gap-y-3 sm:grid-cols-2">
                 <div>
                   <dt class="text-xs text-muted">Date</dt>
@@ -506,11 +583,11 @@ const retour = () => router.push({ name: 'confirmed' })
                     label="Salon / bureau"
                     :options="officeOptions"
                   />
-                  <BaseField
-                    v-model="assignmentForm.staffId"
-                    label="Agent / coiffeuse"
+                  <AgentPicker
+                    v-model="assignmentForm.staffIds"
+                    label="Agents / coiffeuses"
                     :options="agentOptions"
-                    hint="Proposé d’après le bureau, modifiable."
+                    hint="Plusieurs agents possibles sur la même prestation ; le premier coché est le principal."
                   />
                 </div>
                 <div class="flex gap-2">
@@ -539,9 +616,9 @@ const retour = () => router.push({ name: 'confirmed' })
                     L'agent réalise la coiffure. Ce n'est pas la personne qui
                     saisit l'opération : celle-ci figure deux lignes plus bas.
                   -->
-                  <dt class="text-xs text-muted">Agent / coiffeuse</dt>
-                  <dd class="text-sm" :class="operation.agent ? 'text-cocoa-dark' : 'text-muted'">
-                    {{ operation.agent ? operation.agent.name : 'Non attribué' }}
+                  <dt class="text-xs text-muted">{{ agentsDeLaPrestation.length > 1 ? 'Agents / coiffeuses' : 'Agent / coiffeuse' }}</dt>
+                  <dd class="text-sm" :class="agentsDeLaPrestation.length ? 'text-cocoa-dark' : 'text-muted'">
+                    {{ agentsDeLaPrestation.length ? nomsAgents(agentsDeLaPrestation) : 'Non attribué' }}
                   </dd>
                 </div>
                 <div>
@@ -766,6 +843,7 @@ const retour = () => router.push({ name: 'confirmed' })
                         auto_confirm: 'check',
                         payment_review: 'alert',
                         discount: 'percent',
+                        price: 'cash',
                         document: 'receipt',
                         assignment: 'door',
                         mail: 'mail',
@@ -788,6 +866,28 @@ const retour = () => router.push({ name: 'confirmed' })
     </DataState>
 
     <!-- ══ Enregistrement de la présence : saisie puis relecture ══ -->
+    <BaseModal :open="editOpen" title="Modifier le rendez-vous" subtitle="Date, heure et statut" size="sm" @close="editOpen = false">
+      <div v-if="operation" class="flex flex-col gap-3">
+        <p v-if="editError" class="rounded-lg bg-danger/10 p-3 text-sm text-danger" role="alert">{{ editError }}</p>
+        <div class="grid gap-3 sm:grid-cols-2">
+          <BaseField v-model="edit.date" label="Date" type="date" />
+          <BaseField v-model="edit.time" label="Heure" type="time" />
+        </div>
+        <BaseField v-model="edit.status" label="Statut" :options="statusOptions" />
+        <p class="text-xs text-muted">
+          Changer la date ou l’heure ne prévient pas la cliente automatiquement. Un changement de statut peut lui envoyer un message : cochez ci-dessous pour l’autoriser.
+        </p>
+        <label class="flex items-center gap-2 text-sm text-cocoa">
+          <input v-model="edit.notify" type="checkbox" /> Prévenir la cliente du changement de statut
+        </label>
+        <div class="flex justify-end gap-2">
+          <BaseButton variant="subtle" @click="editOpen = false">Annuler</BaseButton>
+          <BaseButton v-if="editForcable" variant="secondary" :disabled="editSaving" @click="saveEdit({ force: true })">Enregistrer quand même</BaseButton>
+          <BaseButton :disabled="!editChanged || editSaving" @click="saveEdit()">{{ editSaving ? 'Enregistrement…' : 'Enregistrer' }}</BaseButton>
+        </div>
+      </div>
+    </BaseModal>
+
     <BaseModal
       :open="arrivalOpen"
       title="Enregistrer la présence de la cliente"
@@ -815,11 +915,11 @@ const retour = () => router.push({ name: 'confirmed' })
               label="Salon / bureau"
               :options="officeOptions"
             />
-            <BaseField
-              v-model="arrivalForm.staffId"
-              label="Agent / coiffeuse"
+            <AgentPicker
+              v-model="arrivalForm.staffIds"
+              label="Agents / coiffeuses"
               :options="agentOptions"
-              hint="Proposé d’après le bureau choisi."
+              hint="Proposé d’après le bureau choisi ; plusieurs agents possibles."
             />
           </div>
         </template>
@@ -858,9 +958,9 @@ const retour = () => router.push({ name: 'confirmed' })
               </dd>
             </div>
             <div class="flex items-baseline justify-between gap-3 py-2 text-sm">
-              <dt class="text-muted">Agent</dt>
+              <dt class="text-muted">{{ arrivalForm.staffIds.length > 1 ? 'Agents' : 'Agent' }}</dt>
               <dd class="text-right text-cocoa-dark">
-                {{ libelleOption(agentOptions, arrivalForm.staffId) }}
+                {{ nomsAgents(arrivalForm.staffIds) }}
               </dd>
             </div>
           </dl>

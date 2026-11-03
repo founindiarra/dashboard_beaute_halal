@@ -17,7 +17,7 @@ import { initialsOf } from '@/utils/format'
  * un message relu deux fois n'apparaît jamais deux fois. L'envoi est « optimiste » : le message s'affiche tout
  * de suite avec un identifiant client (`clientRef`) ; un renvoi réutilise le même identifiant → aucun doublon.
  */
-const props = defineProps({
+defineProps({
   /** Le compte WhatsApp du salon est connecté (sinon : lecture seule). */
   connected: { type: Boolean, default: false },
   /** Le service WhatsApp ne répond pas. */
@@ -101,6 +101,13 @@ const ERREURS = {
   WHATSAPP_CHAT_INVALID_NUMBER: 'Numéro invalide. Utilisez un numéro ivoirien (ex. 07 00 00 00 00).',
   WHATSAPP_CHAT_DISABLED: 'La messagerie WhatsApp est désactivée sur le serveur.',
   not_connected: 'WhatsApp est déconnecté : le message n’est pas parti.',
+  NOT_CONNECTED: 'Le WhatsApp du salon n’est pas connecté au service d’envoi (le contact n’y est pour rien). Ouvrez « Connexion et journal », vérifiez l’état, puis réessayez.',
+  NOT_CONFIGURED: 'Le service WhatsApp n’est pas configuré sur le serveur (variables WHATSAPP_QR_SERVICE_URL / SECRET).',
+  AUTH_FAILED: 'Le service WhatsApp refuse la signature du serveur : le secret partagé diffère des deux côtés.',
+  OPTED_OUT: 'Ce numéro est sur la liste de désinscription : l’envoi est bloqué.',
+  REJECTED: 'Ce numéro n’a pas WhatsApp, ou WhatsApp a refusé le message.',
+  INVALID: 'Message refusé par le service WhatsApp (texte ou numéro invalide).',
+  SERVICE_ERROR: 'Le service WhatsApp a rencontré une erreur : consultez son journal sur « Connexion et journal ».',
   UNREACHABLE: 'Le service WhatsApp est injoignable.',
   TIMEOUT: 'Le service WhatsApp n’a pas répondu à temps.',
   RATE_LIMITED: 'Trop d’envois rapprochés. Patientez un instant.',
@@ -260,10 +267,9 @@ const loadOlder = async () => {
 /* ───────────────────────────── Envoi ───────────────────────────── */
 const blocage = computed(() => {
   const c = selected.value
-  if (props.serviceDown) return 'Le service WhatsApp est injoignable : l’envoi est désactivé, l’historique reste consultable.'
-  if (!props.connected) return 'WhatsApp est déconnecté : l’envoi est désactivé, l’historique reste consultable. Reconnectez le compte dans l’onglet « Connexion ».'
+  // Service déconnecté ou injoignable : l'envoi n'est plus bloqué ici. Le serveur tente de relancer la session puis renvoie
+  // une erreur claire si cela échoue ; le message reste alors visible dans la conversation avec « Réessayer ».
   if (!c) return ''
-  if (c.whatsappOptIn === false) return ERREURS.WHATSAPP_CHAT_OPTED_OUT
   if (!c.phone) return ERREURS.WHATSAPP_CHAT_NO_PHONE
   return ''
 })
@@ -656,7 +662,7 @@ const hasSelection = computed(() => Boolean(selected.value))
       </form>
       <template #footer>
         <BaseButton variant="secondary" :disabled="newBusy" @click="newOpen = false">Annuler</BaseButton>
-        <BaseButton :loading="newBusy" :disabled="!newValid || !connected || serviceDown" @click="startNew">Envoyer</BaseButton>
+        <BaseButton :loading="newBusy" :disabled="!newValid" @click="startNew">Envoyer</BaseButton>
       </template>
     </BaseModal>
   </section>

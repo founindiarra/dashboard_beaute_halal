@@ -8,6 +8,7 @@ import ImageField from '@/components/ui/ImageField.vue'
 import VideoField from '@/components/ui/VideoField.vue'
 import PageHeader from '@/components/ui/PageHeader.vue'
 import { SITE_URL } from '@/data/coiffuresSalon'
+import { deplacer } from '@/directives/sortable'
 import { tarifs as api } from '@/services'
 import { useToastStore } from '@/stores/toasts'
 
@@ -25,6 +26,7 @@ const PAGES = [
   { key: 'gallery', label: 'Nos coiffures', path: '/galerie' },
   { key: 'about', label: 'À propos', path: '/a-propos' },
   { key: 'booking', label: 'Rendez-vous', path: '/rendez-vous' },
+  { key: 'policy', label: 'Politique de réservation', path: '/politique-reservation' },
   { key: 'contact', label: 'Contact', path: '/contact' },
 ]
 
@@ -85,6 +87,12 @@ const moveAbout = (i, delta) => {
   touch()
 }
 
+/** Glisser-déposer des photos de « À propos » : même effet que les flèches, enregistré avec le bouton du bas. */
+const reorderAbout = (from, to) => {
+  catalogue.value.media.aboutPhotos = deplacer(catalogue.value.media.aboutPhotos, from, to)
+  touch()
+}
+
 const save = async () => {
   saving.value = true
   try {
@@ -133,7 +141,7 @@ const save = async () => {
         <section class="flex flex-col gap-3">
           <header class="flex items-end justify-between gap-3">
             <div>
-              <h2 class="font-display text-xl text-cocoa-dark">Bannières des pages</h2>
+              <h2 class="section-title">Bannières des pages</h2>
               <p class="text-xs text-muted">Une photo pour ordinateur, une pour mobile (facultative).</p>
             </div>
             <span class="rounded-full bg-ivory px-3 py-1 text-xs text-muted">{{ customCount }} / {{ PAGES.length }} personnalisées</span>
@@ -147,7 +155,7 @@ const save = async () => {
                     <AdminIcon name="image" class="h-4 w-4" />
                   </span>
                   <div>
-                    <p class="font-display text-[1.05rem] leading-tight text-cocoa-dark">{{ page.label }}</p>
+                    <p class="group-title">{{ page.label }}</p>
                     <a :href="SITE_URL + page.path" target="_blank" rel="noopener noreferrer" class="text-[0.7rem] text-muted underline-offset-2 hover:text-gold hover:underline">
                       Voir la page <span class="sr-only">(nouvel onglet)</span>
                     </a>
@@ -183,7 +191,7 @@ const save = async () => {
         <!-- Vidéo de la page Rendez-vous -->
         <section class="flex flex-col gap-3">
           <header>
-            <h2 class="font-display text-xl text-cocoa-dark">Vidéo · page Rendez-vous</h2>
+            <h2 class="section-title">Vidéo · page Rendez-vous</h2>
             <p class="text-xs text-muted">
               Vidéo ronde en haut de la page de réservation (muette, en boucle). Case vide = la vidéo intégrée au site (TikTok actuelle).
             </p>
@@ -210,7 +218,7 @@ const save = async () => {
         <section class="flex flex-col gap-3">
           <header class="flex flex-wrap items-end justify-between gap-3">
             <div>
-              <h2 class="font-display text-xl text-cocoa-dark">Photos du salon · page À propos</h2>
+              <h2 class="section-title">Photos du salon · page À propos</h2>
               <p class="text-xs text-muted">
                 Elles défilent dans le cercle de la bannière. 8 photos au plus, de préférence en portrait. Aucune = les deux photos du site.
               </p>
@@ -224,7 +232,7 @@ const save = async () => {
           <p v-if="!catalogue.media.aboutPhotos.length" class="card px-4 py-6 text-center text-sm text-muted">
             Aucune photo réglée : le site utilise ses deux photos du salon intégrées.
           </p>
-          <ul class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          <ul v-sortable="{ onReorder: reorderAbout }" class="sortable-grab grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
             <li v-for="(photo, i) in catalogue.media.aboutPhotos" :key="i" class="card flex flex-col gap-3 p-3">
               <div class="flex items-center justify-between">
                 <span class="grid h-6 w-6 place-items-center rounded-full bg-cocoa-dark text-xs text-white">{{ i + 1 }}</span>

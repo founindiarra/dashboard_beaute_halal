@@ -4,6 +4,7 @@ import { computed, ref } from 'vue'
 import BaseButton from '@/components/ui/BaseButton.vue'
 import BaseField from '@/components/ui/BaseField.vue'
 import DataState from '@/components/ui/DataState.vue'
+import ImageField from '@/components/ui/ImageField.vue'
 import PageHeader from '@/components/ui/PageHeader.vue'
 import { tarifs as api } from '@/services'
 import { useToastStore } from '@/stores/toasts'
@@ -58,6 +59,12 @@ const PROFILS = [
   { key: 'autres', label: 'Tous les autres cas', hint: 'Par exemple 14:00, 14:30.' },
 ]
 
+const TYPES_METHODES = [
+  { key: 'micro', label: 'Micro-locks' },
+  { key: 'small', label: 'Small locks' },
+  { key: 'traditionnels', label: 'Locks traditionnelles' },
+]
+
 const ensure = () => {
   const c = catalogue.value
   if (!c) return
@@ -83,6 +90,17 @@ const ensure = () => {
   s.tailles ??= { title: '', lines: [] }
   s.tailles.lines ??= []
   s.creneaux ??= {}
+  s.regles ??= { titre: '', lignes: [] }
+  s.regles.lignes ??= []
+  s.politique ??= { titre: '', intro: '', sections: [] }
+  s.politique.sections ??= []
+  s.methodes ??= {}
+  for (const t of TYPES_METHODES) {
+    s.methodes[t.key] ??= { intro: '', noteTemps: '', methodes: [] }
+    s.methodes[t.key].methodes ??= []
+  }
+  s.detailsCoiffure ??= { tempsNote: '', reparationTemps: '', soins: [] }
+  s.detailsCoiffure.soins ??= []
   c.reparations ??= []
   for (const p of PROFILS) heures.value[p.key] = (s.creneaux[p.key] ?? []).join(', ')
 }
@@ -126,6 +144,13 @@ const move = (list, i, delta) => {
   touch()
 }
 
+const addSoin = () => {
+  const liste = site.value.detailsCoiffure.soins
+  if (liste.length >= 10) return toasts.error('10 soins au maximum.')
+  liste.push({ id: `soin-${Date.now()}`, name: '', price: '', from: '', text: '' })
+  touch()
+}
+
 /** « 9:00, 14h30 ; 15:00 » → ['09:00', '14:30', '15:00'] ; null si une heure est invalide. */
 const lireHeures = (texte) => {
   const morceaux = String(texte ?? '').split(/[,;\s]+/).filter(Boolean)
@@ -153,6 +178,17 @@ const save = async () => {
     r.from = Math.round(n)
   }
   c.site.creneaux = creneaux
+  c.site.regles.lignes = c.site.regles.lignes.map((l) => String(l).trim()).filter(Boolean)
+  c.site.politique.sections = c.site.politique.sections.map((x) => ({ titre: String(x.titre ?? '').trim(), texte: String(x.texte ?? '').trim() })).filter((x) => x.titre)
+  const soins = []
+  for (const x of c.site.detailsCoiffure.soins) {
+    if (!String(x.name ?? '').trim()) continue
+    const price = x.price === '' || x.price == null ? 0 : Number(x.price)
+    const from = x.from === '' || x.from == null ? 0 : Number(x.from)
+    if (![price, from].every((n) => Number.isFinite(n) && n >= 0)) return toasts.error(`Montant invalide pour « ${x.name} ».`)
+    soins.push({ id: x.id, name: String(x.name).trim(), text: String(x.text ?? '').trim(), image: String(x.image ?? '').trim(), ...(price > 0 ? { price: Math.round(price) } : from > 0 ? { from: Math.round(from) } : {}) })
+  }
+  c.site.detailsCoiffure.soins = soins
   // Lignes vides retirées.
   c.site.conditions.lines = c.site.conditions.lines.map((l) => String(l).trim()).filter(Boolean)
   c.site.tailles.lines = c.site.tailles.lines.map((l) => String(l).trim()).filter(Boolean)
@@ -190,7 +226,7 @@ const save = async () => {
 
         <section class="card flex flex-col gap-3 p-4">
           <header>
-            <h2 class="font-display text-xl text-cocoa-dark">Accueil : titre principal</h2>
+            <h2 class="section-title">Accueil : titre principal</h2>
             <p class="text-xs text-muted">Le grand titre de la première page. Le texte d’introduction se règle dans « Tarifs du site ».</p>
           </header>
           <BaseField v-model="site.accueil.titre" label="Titre" hint="Exemple : Locks, small locks et *micro-locks* à Abidjan." @update:model-value="touch" />
@@ -203,7 +239,7 @@ const save = async () => {
         <section class="card flex flex-col gap-3 p-4">
           <header class="flex items-center justify-between gap-3">
             <div>
-              <h2 class="font-display text-xl text-cocoa-dark">Accueil : le savoir-faire</h2>
+              <h2 class="section-title">Accueil : le savoir-faire</h2>
               <p class="text-xs text-muted">Le titre et les cartes numérotées.</p>
             </div>
             <BaseButton variant="secondary" @click="addBlock(site.approche.valeurs, 6)">Ajouter une carte</BaseButton>
@@ -214,7 +250,7 @@ const save = async () => {
           </div>
           <BaseField v-model="site.approche.titre" label="Titre" @update:model-value="touch" />
           <ul class="flex flex-col gap-3">
-            <li v-for="(v, i) in site.approche.valeurs" :key="i" class="flex flex-col gap-3 rounded-xl border border-line p-3">
+            <li v-for="(v, i) in site.approche.valeurs" :key="i" class="field-zone flex flex-col gap-3">
               <BaseField v-model="v.title" :label="`Carte ${i + 1} : titre`" @update:model-value="touch" />
               <BaseField v-model="v.text" label="Texte" textarea :rows="3" @update:model-value="touch" />
               <div class="flex gap-2">
@@ -229,7 +265,7 @@ const save = async () => {
         <section class="card flex flex-col gap-3 p-4">
           <header class="flex items-center justify-between gap-3">
             <div>
-              <h2 class="font-display text-xl text-cocoa-dark">Comment ça marche</h2>
+              <h2 class="section-title">Comment ça marche</h2>
               <p class="text-xs text-muted">Les étapes affichées sur l’accueil et la page « À propos ».</p>
             </div>
             <BaseButton variant="secondary" @click="addBlock(site.etapes.liste, 8)">Ajouter une étape</BaseButton>
@@ -239,7 +275,7 @@ const save = async () => {
             <BaseField v-model="site.etapes.titre" label="Titre" @update:model-value="touch" />
           </div>
           <ul class="flex flex-col gap-3">
-            <li v-for="(v, i) in site.etapes.liste" :key="i" class="flex flex-col gap-3 rounded-xl border border-line p-3">
+            <li v-for="(v, i) in site.etapes.liste" :key="i" class="field-zone flex flex-col gap-3">
               <BaseField v-model="v.title" :label="`Étape ${i + 1} : titre`" @update:model-value="touch" />
               <BaseField v-model="v.text" label="Texte" textarea :rows="2" @update:model-value="touch" />
               <div class="flex gap-2">
@@ -253,11 +289,11 @@ const save = async () => {
 
         <section class="card flex flex-col gap-3 p-4">
           <header>
-            <h2 class="font-display text-xl text-cocoa-dark">Titres des sections</h2>
+            <h2 class="section-title">Titres des sections</h2>
             <p class="text-xs text-muted">Les titres des blocs de l’accueil et de la page Services.</p>
           </header>
-          <div v-for="x in SECTIONS" :key="x.key" class="flex flex-col gap-3 rounded-xl border border-line p-3">
-            <h3 class="text-sm font-medium text-cocoa-dark">{{ x.label }}</h3>
+          <div v-for="x in SECTIONS" :key="x.key" class="field-zone flex flex-col gap-3">
+            <h3 class="group-title">{{ x.label }}</h3>
             <div class="grid gap-3 sm:grid-cols-2">
               <BaseField v-model="site.sections[x.key].eyebrow" label="Petit titre" @update:model-value="touch" />
               <BaseField v-model="site.sections[x.key].titre" label="Titre" @update:model-value="touch" />
@@ -265,8 +301,8 @@ const save = async () => {
             </div>
             <BaseField v-if="x.intro" v-model="site.sections[x.key].intro" label="Introduction" textarea :rows="2" @update:model-value="touch" />
           </div>
-          <div class="flex flex-col gap-3 rounded-xl border border-line p-3">
-            <h3 class="text-sm font-medium text-cocoa-dark">Page introuvable (erreur 404)</h3>
+          <div class="field-zone flex flex-col gap-3">
+            <h3 class="group-title">Page introuvable (erreur 404)</h3>
             <BaseField v-model="site.sections.introuvable.titre" label="Titre" @update:model-value="touch" />
             <BaseField v-model="site.sections.introuvable.texte" label="Texte" textarea :rows="2" @update:model-value="touch" />
           </div>
@@ -274,11 +310,11 @@ const save = async () => {
 
         <section class="card flex flex-col gap-3 p-4">
           <header>
-            <h2 class="font-display text-xl text-cocoa-dark">Référencement (Google et partages)</h2>
+            <h2 class="section-title">Référencement (Google et partages)</h2>
             <p class="text-xs text-muted">Le titre de l’onglet du navigateur et la description montrée dans les résultats Google et les aperçus WhatsApp ou Facebook.</p>
           </header>
-          <div v-for="x in SEO_PAGES" :key="x.key" class="flex flex-col gap-3 rounded-xl border border-line p-3">
-            <h3 class="text-sm font-medium text-cocoa-dark">{{ x.label }}</h3>
+          <div v-for="x in SEO_PAGES" :key="x.key" class="field-zone flex flex-col gap-3">
+            <h3 class="group-title">{{ x.label }}</h3>
             <BaseField v-model="site.seo[x.key].title" label="Titre" hint="Environ 60 caractères au maximum." @update:model-value="touch" />
             <BaseField v-model="site.seo[x.key].description" label="Description" textarea :rows="2" hint="Environ 160 caractères au maximum." @update:model-value="touch" />
           </div>
@@ -286,7 +322,7 @@ const save = async () => {
 
         <section class="card flex flex-col gap-3 p-4">
           <header>
-            <h2 class="font-display text-xl text-cocoa-dark">Bandeaux « Prendre rendez-vous »</h2>
+            <h2 class="section-title">Bandeaux « Prendre rendez-vous »</h2>
             <p class="text-xs text-muted">Le grand bandeau en bas des pages, et sa variante sur la page « Coiffures ».</p>
           </header>
           <div class="grid gap-3 sm:grid-cols-2">
@@ -299,11 +335,11 @@ const save = async () => {
 
         <section class="card flex flex-col gap-3 p-4">
           <header>
-            <h2 class="font-display text-xl text-cocoa-dark">Titres des pages</h2>
+            <h2 class="section-title">Titres des pages</h2>
             <p class="text-xs text-muted">Le bandeau en haut de chaque page.</p>
           </header>
-          <div v-for="p in PAGES" :key="p.key" class="flex flex-col gap-3 rounded-xl border border-line p-3">
-            <h3 class="text-sm font-medium text-cocoa-dark">{{ p.label }}</h3>
+          <div v-for="p in PAGES" :key="p.key" class="field-zone flex flex-col gap-3">
+            <h3 class="group-title">{{ p.label }}</h3>
             <div class="grid gap-3 sm:grid-cols-2">
               <BaseField v-model="site.pages[p.key].eyebrow" label="Petit titre" @update:model-value="touch" />
               <BaseField v-model="site.pages[p.key].titre" label="Titre" @update:model-value="touch" />
@@ -316,14 +352,14 @@ const save = async () => {
         <section class="card flex flex-col gap-3 p-4">
           <header class="flex items-center justify-between gap-3">
             <div>
-              <h2 class="font-display text-xl text-cocoa-dark">Conditions de rendez-vous</h2>
+              <h2 class="section-title">Conditions de rendez-vous</h2>
               <p class="text-xs text-muted">Affichées avant le paiement : la cliente doit les accepter.</p>
             </div>
             <BaseButton variant="secondary" @click="addLine(site.conditions.lines)">Ajouter une condition</BaseButton>
           </header>
           <BaseField v-model="site.conditions.title" label="Titre" @update:model-value="touch" />
           <ul class="flex flex-col gap-3">
-            <li v-for="(l, i) in site.conditions.lines" :key="i" class="flex flex-col gap-2 rounded-xl border border-line p-3">
+            <li v-for="(l, i) in site.conditions.lines" :key="i" class="field-zone flex flex-col gap-2">
               <BaseField v-model="site.conditions.lines[i]" :label="`Condition ${i + 1}`" textarea :rows="2" @update:model-value="touch" />
               <div class="flex gap-2">
                 <BaseButton variant="subtle" :disabled="i === 0" @click="move(site.conditions.lines, i, -1)">Monter</BaseButton>
@@ -338,14 +374,14 @@ const save = async () => {
         <section class="card flex flex-col gap-3 p-4">
           <header class="flex items-center justify-between gap-3">
             <div>
-              <h2 class="font-display text-xl text-cocoa-dark">Aide : lire les tailles</h2>
+              <h2 class="section-title">Aide : lire les tailles</h2>
               <p class="text-xs text-muted">Affichée au choix du type de locks (micro, small, traditionnelles).</p>
             </div>
             <BaseButton variant="secondary" @click="addLine(site.tailles.lines)">Ajouter une ligne</BaseButton>
           </header>
           <BaseField v-model="site.tailles.title" label="Titre" @update:model-value="touch" />
           <ul class="flex flex-col gap-3">
-            <li v-for="(l, i) in site.tailles.lines" :key="i" class="flex flex-col gap-2 rounded-xl border border-line p-3">
+            <li v-for="(l, i) in site.tailles.lines" :key="i" class="field-zone flex flex-col gap-2">
               <BaseField v-model="site.tailles.lines[i]" :label="`Ligne ${i + 1}`" textarea :rows="2" @update:model-value="touch" />
               <div class="flex gap-2">
                 <BaseButton variant="subtle" :disabled="i === 0" @click="move(site.tailles.lines, i, -1)">Monter</BaseButton>
@@ -358,11 +394,11 @@ const save = async () => {
 
         <section class="card flex flex-col gap-3 p-4">
           <header>
-            <h2 class="font-display text-xl text-cocoa-dark">Réparations</h2>
+            <h2 class="section-title">Réparations</h2>
             <p class="text-xs text-muted">Prix « à partir de » de chaque niveau, quel que soit le type de locks.</p>
           </header>
           <p v-if="!catalogue.reparations.length" class="text-sm text-muted">Aucun niveau défini.</p>
-          <div v-for="r in catalogue.reparations" :key="r.id" class="flex flex-col gap-3 rounded-xl border border-line p-3">
+          <div v-for="r in catalogue.reparations" :key="r.id" class="field-zone flex flex-col gap-3">
             <div class="grid gap-3 sm:grid-cols-2">
               <BaseField v-model="r.name" label="Nom" @update:model-value="touch" />
               <BaseField v-model="r.from" type="number" :min="0" :step="500" label="À partir de (FCFA)" @update:model-value="touch" />
@@ -372,8 +408,100 @@ const save = async () => {
         </section>
 
         <section class="card flex flex-col gap-3 p-4">
+          <header class="flex items-center justify-between gap-3">
+            <div>
+              <h2 class="section-title">Encadré « À savoir avant de réserver »</h2>
+              <p class="text-xs text-muted">Affiché en haut de la page de rendez-vous (salon fermé aux hommes, uniquement des locks, ni mèches ni ajouts…).</p>
+            </div>
+            <BaseButton variant="secondary" @click="addLine(site.regles.lignes, 6)">Ajouter une ligne</BaseButton>
+          </header>
+          <BaseField v-model="site.regles.titre" label="Titre" @update:model-value="touch" />
+          <ul class="flex flex-col gap-3">
+            <li v-for="(l, i) in site.regles.lignes" :key="i" class="field-zone flex flex-col gap-2">
+              <BaseField v-model="site.regles.lignes[i]" :label="`Ligne ${i + 1}`" textarea :rows="2" @update:model-value="touch" />
+              <div class="flex gap-2">
+                <BaseButton variant="subtle" :disabled="i === 0" @click="move(site.regles.lignes, i, -1)">Monter</BaseButton>
+                <BaseButton variant="subtle" :disabled="i === site.regles.lignes.length - 1" @click="move(site.regles.lignes, i, 1)">Descendre</BaseButton>
+                <BaseButton variant="danger" @click="remove(site.regles.lignes, i)">Retirer</BaseButton>
+              </div>
+            </li>
+          </ul>
+        </section>
+
+        <section class="card flex flex-col gap-3 p-4">
+          <header class="flex items-center justify-between gap-3">
+            <div>
+              <h2 class="section-title">Politique de réservation</h2>
+              <p class="text-xs text-muted">Page « Politique de réservation » du site (bouton à la première étape du rendez-vous). Un titre de rubrique vide retire la rubrique.</p>
+            </div>
+            <BaseButton variant="secondary" @click="site.politique.sections.length >= 10 ? toasts.error('10 rubriques au maximum.') : (site.politique.sections.push({ titre: '', texte: '' }), touch())">Ajouter une rubrique</BaseButton>
+          </header>
+          <BaseField v-model="site.politique.titre" label="Titre de la page" @update:model-value="touch" />
+          <BaseField v-model="site.politique.intro" label="Phrase d’introduction" textarea :rows="2" @update:model-value="touch" />
+          <ul class="flex flex-col gap-3">
+            <li v-for="(x, i) in site.politique.sections" :key="i" class="field-zone flex flex-col gap-2">
+              <BaseField v-model="x.titre" :label="`Rubrique ${i + 1} : titre`" @update:model-value="touch" />
+              <BaseField v-model="x.texte" label="Texte" textarea :rows="4" @update:model-value="touch" />
+              <div class="flex gap-2">
+                <BaseButton variant="subtle" :disabled="i === 0" @click="move(site.politique.sections, i, -1)">Monter</BaseButton>
+                <BaseButton variant="subtle" :disabled="i === site.politique.sections.length - 1" @click="move(site.politique.sections, i, 1)">Descendre</BaseButton>
+                <BaseButton variant="danger" @click="remove(site.politique.sections, i)">Retirer</BaseButton>
+              </div>
+            </li>
+          </ul>
+        </section>
+
+        <section class="card flex flex-col gap-3 p-4">
           <header>
-            <h2 class="font-display text-xl text-cocoa-dark">Heures proposées selon la cliente</h2>
+            <h2 class="section-title">Méthodes de pose et temps de réalisation</h2>
+            <p class="text-xs text-muted">
+              Étape « Méthode » de l’installation (conseils) et détails d’une coiffure sur la page « Coiffures » (durées).
+              Les quatre méthodes sont fixes ; vous réglez leur nom, leur conseil et leur durée. Un champ vide retrouve le texte d’origine.
+            </p>
+          </header>
+          <div v-for="t in TYPES_METHODES" :key="t.key" class="field-zone flex flex-col gap-3">
+            <h3 class="group-title">{{ t.label }}</h3>
+            <BaseField v-model="site.methodes[t.key].intro" label="Introduction de l’étape « Méthode »" textarea :rows="2" @update:model-value="touch" />
+            <BaseField v-model="site.methodes[t.key].noteTemps" label="Note sur la durée" textarea :rows="2" @update:model-value="touch" />
+            <div v-for="m in site.methodes[t.key].methodes" :key="m.id" class="flex flex-col gap-3 rounded-lg bg-ivory/50 p-3">
+              <BaseField v-model="m.label" :label="`Méthode (${m.id}) : nom`" @update:model-value="touch" />
+              <BaseField v-model="m.conseil" label="Conseil (pour quelle coiffure)" textarea :rows="2" @update:model-value="touch" />
+              <BaseField v-model="m.duree" label="Temps de réalisation" hint="Exemple : 4 h à 5 h en moyenne" @update:model-value="touch" />
+            </div>
+          </div>
+        </section>
+
+        <section class="card flex flex-col gap-3 p-4">
+          <header class="flex items-center justify-between gap-3">
+            <div>
+              <h2 class="section-title">Détails des coiffures</h2>
+              <p class="text-xs text-muted">Affichés quand une cliente ouvre une coiffure : durée d’installation, shampooings, retrait et réparation.</p>
+            </div>
+            <BaseButton variant="secondary" @click="addSoin">Ajouter un soin</BaseButton>
+          </header>
+          <BaseField v-model="site.detailsCoiffure.tempsNote" label="Note sur le temps d’installation" textarea :rows="3" @update:model-value="touch" />
+          <BaseField v-model="site.detailsCoiffure.reparationTemps" label="Temps de réparation" textarea :rows="2" @update:model-value="touch" />
+          <ul class="flex flex-col gap-3">
+            <li v-for="(x, i) in site.detailsCoiffure.soins" :key="x.id || i" class="field-zone flex flex-col gap-3">
+              <BaseField v-model="x.name" :label="`Soin ${i + 1} : nom`" @update:model-value="touch" />
+              <div class="grid gap-3 sm:grid-cols-2">
+                <BaseField v-model="x.price" type="number" :min="0" :step="500" label="Prix fixe (FCFA)" hint="Laissez vide si le prix est « à partir de »." @update:model-value="touch" />
+                <BaseField v-model="x.from" type="number" :min="0" :step="500" label="À partir de (FCFA)" hint="Utilisé seulement sans prix fixe." @update:model-value="touch" />
+              </div>
+              <BaseField v-model="x.text" label="Explication" textarea :rows="3" @update:model-value="touch" />
+              <ImageField v-model="x.image" label="Photo du produit" hint="Affichée sur la carte du site (page de rendez-vous). Vide = la photo intégrée au site, s’il y en a une." @update:model-value="touch" @error="toasts.error($event)" />
+              <div class="flex gap-2">
+                <BaseButton variant="subtle" :disabled="i === 0" @click="move(site.detailsCoiffure.soins, i, -1)">Monter</BaseButton>
+                <BaseButton variant="subtle" :disabled="i === site.detailsCoiffure.soins.length - 1" @click="move(site.detailsCoiffure.soins, i, 1)">Descendre</BaseButton>
+                <BaseButton variant="danger" @click="remove(site.detailsCoiffure.soins, i)">Retirer</BaseButton>
+              </div>
+            </li>
+          </ul>
+        </section>
+
+        <section class="card flex flex-col gap-3 p-4">
+          <header>
+            <h2 class="section-title">Heures proposées selon la cliente</h2>
             <p class="text-xs text-muted">
               Seules les heures libres du calendrier sont montrées. Le nombre de places d’une heure est le nombre d’agents actifs
               en poste (page « Agents & coiffeuses »). Les heures doivent exister dans les créneaux du salon.

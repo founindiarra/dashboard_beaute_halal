@@ -92,6 +92,8 @@ export const services = {
   find: (id) => http.get(`/admin/services/${id}`).then((r) => r.data),
   create: (payload) => http.post('/admin/services', payload).then((r) => r.data),
   update: (id, payload) => http.patch(`/admin/services/${id}`, payload).then((r) => r.data),
+  /** PUT /admin/services/order — ordre d'affichage choisi par glisser-déposer : ids dans l'ordre voulu. */
+  reorder: (ids) => http.put('/admin/services/order', { ids }).then((r) => r.data),
   /** Renvoie 409 si des rendez-vous référencent la prestation. */
   remove: (id) => http.delete(`/admin/services/${id}`),
 }
@@ -221,6 +223,12 @@ export const tarifs = {
   reset: () => http.post('/admin/tarifs/reset', {}).then((r) => r.data),
 }
 
+/** Places par jour : prises / limite, par type de locks et par coiffure. */
+export const quotas = {
+  overview: (from, to) =>
+    http.get(`/admin/quotas${from || to ? `?${new URLSearchParams({ ...(from ? { from } : {}), ...(to ? { to } : {}) })}` : ''}`).then((r) => r.data ?? []),
+}
+
 /* ═══════════════════════ Agents / coiffeuses ══════════════════════════ */
 
 /**
@@ -305,6 +313,8 @@ export const operations = {
 
   setDiscount: (id, payload) =>
     http.put(`/admin/appointments/${id}/discount`, payload).then((r) => r.data),
+
+  setPrice: (id, price) => http.put(`/admin/appointments/${id}/price`, { price }).then((r) => r.data),
 
   addPayment: (id, payload) =>
     http.post(`/admin/appointments/${id}/payments`, payload).then((r) => r.data),
@@ -392,6 +402,15 @@ export const accounting = {
   today: () => http.get('/admin/accounting/today').then((r) => r.data),
 
   summary: (params = {}) => http.get('/admin/accounting/summary', params).then((r) => r.data),
+
+  /** Rapport complet de la période : téléchargé en PDF ou en CSV (tableur). */
+  downloadReport: async ({ from, to }, format = 'pdf') => {
+    const params = { format }
+    if (from) params.from = from
+    if (to) params.to = to
+    const { data } = await http.get('/admin/accounting/report', params, { blob: true, timeout: 60000 })
+    saveBlob(data, `rapport-comptabilite-${from || 'debut'}_${to || 'aujourdhui'}.${format}`)
+  },
 
   accounts: () => http.get('/admin/accounting/accounts').then((r) => r.data ?? []),
   createAccount: (payload) => http.post('/admin/accounting/accounts', payload).then((r) => r.data),

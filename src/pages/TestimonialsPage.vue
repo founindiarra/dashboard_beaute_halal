@@ -53,6 +53,7 @@ const filtered = computed(() => {
   })
 })
 
+const pendingCount = computed(() => (items.value ?? []).filter((i) => !i.isPublished).length)
 const publishedCount = computed(() => (items.value ?? []).filter((i) => i.isPublished).length)
 
 const modalOpen = ref(false)
@@ -169,6 +170,16 @@ const remove = async () => {
         </BaseButton>
       </template>
     </PageHeader>
+
+    <div v-if="pendingCount" class="flex items-center justify-between gap-3 rounded-xl border border-warn/25 bg-warn-bg px-4 py-2.5 text-sm text-warn">
+      <span>
+        {{ pendingCount }} avis non publié{{ pendingCount > 1 ? 's' : '' }} — les avis laissés par les clientes depuis le site arrivent ici,
+        à relire puis publier.
+      </span>
+      <BaseButton size="sm" variant="secondary" @click="onlyUnpublished = !onlyUnpublished">
+        {{ onlyUnpublished ? 'Tout afficher' : 'Les voir' }}
+      </BaseButton>
+    </div>
 
     <div class="card flex flex-col gap-3 p-3.5 sm:flex-row sm:items-center">
       <SearchInput v-model="search" placeholder="Prénom, commentaire, prestation…" />

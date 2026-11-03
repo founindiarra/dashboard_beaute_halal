@@ -50,7 +50,7 @@ const routes = [
     path: '/soins-capillaires',
     name: 'soins',
     component: () => import('@/pages/SoinsPage.vue'),
-    meta: { title: 'Soins capillaires', permission: 'soins' },
+    meta: { title: 'Consultation capillaire', permission: 'soins' },
   },
   {
     path: '/textes-du-site',
@@ -68,11 +68,13 @@ const routes = [
   { path: '/coiffures-du-site', redirect: { name: 'services' } },
   { path: '/photos-du-site', redirect: { name: 'sitePhotos' } },
   {
-    path: '/rendez-vous-confirmes',
-    name: 'confirmed',
-    component: () => import('@/pages/ConfirmedAppointmentsPage.vue'),
-    meta: { title: 'Rendez-vous confirmés', permission: 'appointments' },
+    path: '/rendez-vous-termines',
+    name: 'completed',
+    component: () => import('@/pages/CompletedAppointmentsPage.vue'),
+    meta: { title: 'Rendez-vous terminés', permission: 'appointments' },
   },
+  // Ancien lien : la liste « confirmés » est désormais intégrée à « Rendez-vous ».
+  { path: '/rendez-vous-confirmes', redirect: { name: 'appointments' } },
   {
     path: '/rendez-vous-confirmes/:id',
     name: 'operation',

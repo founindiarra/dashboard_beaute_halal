@@ -42,6 +42,20 @@ const moisCourant = () => {
 
 const periode = ref(moisCourant())
 
+/* ── Rapport de la période (PDF ou tableur) ── */
+const rapportEnCours = ref('')
+const genererRapport = async (format) => {
+  rapportEnCours.value = format
+  try {
+    await api.downloadReport(periode.value, format)
+    toasts.success(format === 'pdf' ? 'Rapport PDF généré.' : 'Rapport tableur généré.')
+  } catch (caught) {
+    toasts.error(caught?.message || 'Impossible de générer le rapport.')
+  } finally {
+    rapportEnCours.value = ''
+  }
+}
+
 const RACCOURCIS = [
   { label: 'Ce mois-ci', get: moisCourant },
   { label: '30 derniers jours', get: () => ({ from: addDays(toDateKey(), -30), to: toDateKey() }) },
@@ -477,6 +491,14 @@ const supprimerCategorie = async () => {
       subtitle="Ce qui entre, ce qui sort, et ce qui reste. Les encaissements arrivent tout seuls depuis les rendez-vous."
     >
       <template #actions>
+        <BaseButton size="sm" variant="secondary" :loading="rapportEnCours === 'pdf'" :disabled="Boolean(rapportEnCours)" @click="genererRapport('pdf')">
+          <AdminIcon name="receipt" class="h-3.5 w-3.5" />
+          Rapport PDF
+        </BaseButton>
+        <BaseButton size="sm" variant="secondary" :loading="rapportEnCours === 'csv'" :disabled="Boolean(rapportEnCours)" @click="genererRapport('csv')">
+          <AdminIcon name="receipt" class="h-3.5 w-3.5" />
+          Rapport Excel
+        </BaseButton>
         <BaseButton size="sm" variant="secondary" @click="comptesOpen = true">
           <AdminIcon name="bank" class="h-3.5 w-3.5" />
           Comptes

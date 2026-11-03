@@ -115,15 +115,19 @@ const confirmationText = (p) => {
 const requestLines = computed(() => {
   const r = request.value
   if (!r) return []
+  /* Consultation seule : le besoin et le type ne sont que des valeurs techniques, on ne les montre pas. */
+  const consultationSeule = Boolean(r.consultation?.mode) && !r.serviceDate
+  const prestation = (valeur) => (consultationSeule ? null : valeur)
   const lines = [
-    ['Besoin', BESOIN_LABELS[r.besoin] ?? r.besoin],
-    ['Type de locks', LOCK_TYPE_LABELS[r.lockType] ?? r.lockType],
-    ['Méthode de pose', r.besoin === 'creation' ? libelleMethode(r.lockType, r.methode) : null],
-    ['Volume', VOLUME_LABELS[r.volume] ?? r.volume],
-    ['Longueur', r.longueur],
-    ['Prestation', FORMULE_LABELS[r.formule] ?? r.formule],
-    ['Délai depuis la pose', DELAI_LABELS[r.delai] ?? r.delai],
-    ['État des locks', ETAT_LABELS[r.etat] ?? r.etat],
+    ['Prestation souhaitée après la consultation', r.serviceDate ? `${formatDateLong(r.serviceDate)}${r.serviceTime ? ` à ${r.serviceTime}` : ''} (à confirmer avec la cliente)` : null],
+    ['Besoin', prestation(BESOIN_LABELS[r.besoin] ?? r.besoin)],
+    ['Type de locks', prestation(LOCK_TYPE_LABELS[r.lockType] ?? r.lockType)],
+    ['Méthode de pose', prestation(r.besoin === 'creation' ? libelleMethode(r.lockType, r.methode) : null)],
+    ['Volume', prestation(VOLUME_LABELS[r.volume] ?? r.volume)],
+    ['Longueur', prestation(r.longueur)],
+    ['Prestation', prestation(FORMULE_LABELS[r.formule] ?? r.formule)],
+    ['Délai depuis la pose', prestation(DELAI_LABELS[r.delai] ?? r.delai)],
+    ['État des locks', prestation(ETAT_LABELS[r.etat] ?? r.etat)],
     ['Inspiration', r.inspirationTitle],
     ['Profil', r.customerKind === 'nouvelle' ? 'Nouvelle cliente' : r.customerKind === 'ancienne' ? 'Ancienne cliente' : null],
     ['Consultation', consultationText(r.consultation)],

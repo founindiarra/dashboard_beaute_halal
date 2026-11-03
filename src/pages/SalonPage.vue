@@ -73,7 +73,7 @@ const GROUPS = [
       {
         key: 'map_embed_url',
         label: 'Carte — adresse d’intégration',
-        hint: 'URL « embed » de Google Maps. Vide = la carte n’est pas affichée.',
+        hint: 'Collez le lien de partage Google Maps (ou l’URL « embed »). Le site en déduit la carte et ajoute « Ouvrir dans Google Maps ». Vide = carte construite avec l’adresse ci-dessus.',
       },
     ],
   },
@@ -132,10 +132,14 @@ const GROUPS = [
     title: 'Messages automatiques de réservation',
     icon: 'send',
     fields: [
-      { key: 'notify_request_paid_enabled', label: 'Paiement reçu', options: [{ value: '1', label: 'Envoyé' }, { value: '0', label: 'Non envoyé' }], hint: 'Envoyé à la cliente par SMS, e-mail et WhatsApp dès que son paiement est confirmé.' },
+      { key: 'notify_payment_recap_enabled', label: 'Récapitulatif complet après paiement', options: [{ value: '1', label: 'Envoyé' }, { value: '0', label: 'Non envoyé' }], hint: 'Dès que les 5 000 FCFA sont payés, puis à chaque confirmation du rendez-vous par le salon : e-mail, WhatsApp ET SMS en même temps, avec tous les détails (rendez-vous, paiement, coiffure et modèle choisis, durée, tarif, règles du salon). Le texte est composé automatiquement ; choisissez ci-dessous les canaux utilisés.' },
+      { key: 'notify_payment_recap_email_enabled', label: 'Récapitulatif — par e-mail', options: [{ value: '1', label: 'Envoyé' }, { value: '0', label: 'Non envoyé' }], hint: 'Message détaillé et structuré (rendez-vous, paiement, coiffure, durée, tarif, règles du salon).' },
+      { key: 'notify_payment_recap_whatsapp_enabled', label: 'Récapitulatif — par WhatsApp', options: [{ value: '1', label: 'Envoyé' }, { value: '0', label: 'Non envoyé' }], hint: 'Même contenu que l’e-mail, mis en forme pour WhatsApp. Nécessite que WhatsApp soit connecté (page WhatsApp).' },
+      { key: 'notify_payment_recap_sms_enabled', label: 'Récapitulatif — par SMS', options: [{ value: '1', label: 'Envoyé' }, { value: '0', label: 'Non envoyé' }], hint: 'Version courte : 155 caractères au maximum (date, heure, coiffure, durée estimée, paiement, référence).' },
+      { key: 'notify_request_paid_enabled', label: 'Paiement reçu', options: [{ value: '1', label: 'Envoyé' }, { value: '0', label: 'Non envoyé' }], hint: 'Court message de secours, utilisé seulement si le récapitulatif complet est désactivé.' },
       { key: 'notify_request_paid_template', label: 'Texte « paiement reçu »', textarea: true, hint: 'Variables : {prenom}, {reference}, {paye}, {salon}. Vide = texte d’origine.' },
-      { key: 'notify_payment_confirmed_enabled', label: 'Confirmé après paiement', options: [{ value: '1', label: 'Envoyé' }, { value: '0', label: 'Non envoyé' }], hint: 'Envoyé à la cliente par SMS, e-mail et WhatsApp quand son rendez-vous est confirmé automatiquement après le paiement de la consultation.' },
-      { key: 'notify_payment_confirmed_template', label: 'Texte « confirmé après paiement »', textarea: true, hint: 'Variables : {prenom}, {date}, {heure}, {prestation}, {paye}, {reference}, {salon}. Vide = texte d’origine.' },
+      { key: 'notify_payment_confirmed_enabled', label: 'Confirmé après paiement', options: [{ value: '1', label: 'Envoyé' }, { value: '0', label: 'Non envoyé' }], hint: 'Court message de secours, utilisé seulement si le récapitulatif complet est désactivé.' },
+      { key: 'notify_payment_confirmed_template', label: 'Texte « confirmé après paiement »', textarea: true, hint: 'Variables : {prenom}, {date}, {heure}, {prestation}, {paye}, {reference}, {salon}, {suite} (prestation souhaitée après la consultation, vide sinon). Vide = texte d’origine.' },
       { key: 'notify_request_received_enabled', label: 'Demande reçue', options: [{ value: '1', label: 'Envoyé' }, { value: '0', label: 'Non envoyé' }] },
       { key: 'notify_request_received_template', label: 'Texte « demande reçue »', textarea: true, hint: 'Variables : {prenom}, {reference}, {salon}. Vide = texte d’origine.' },
       { key: 'notify_request_confirmed_enabled', label: 'Rendez-vous confirmé', options: [{ value: '1', label: 'Envoyé' }, { value: '0', label: 'Non envoyé' }] },
@@ -143,6 +147,25 @@ const GROUPS = [
     ],
   },
 ]
+
+/**
+ * Valeurs d'origine du backend : un champ jamais enregistré s'affiche avec elles (au lieu de rester vide) ;
+ * on voit ainsi ce qui part réellement et on peut le modifier. Vide côté serveur = texte d'origine.
+ */
+const DEFAUTS = {
+  notify_payment_recap_enabled: '1',
+  notify_payment_recap_email_enabled: '1',
+  notify_payment_recap_whatsapp_enabled: '1',
+  notify_payment_recap_sms_enabled: '1',
+  notify_request_paid_enabled: '1',
+  notify_payment_confirmed_enabled: '1',
+  notify_request_received_enabled: '1',
+  notify_request_confirmed_enabled: '1',
+  notify_request_paid_template: 'Bonjour {prenom}, paiement de {paye} bien recu pour votre demande {reference} chez {salon}. Nous vous contactons pour confirmer votre rendez-vous.',
+  notify_payment_confirmed_template: 'Beaute Halal : paiement de {paye} recu. Rendez-vous {reference} CONFIRME le {date} a {heure} ({prestation}). {suite} Merci !',
+  notify_request_received_template: 'Bonjour {prenom}, nous avons bien recu votre demande {reference} pour le {date} a {heure}. Le salon la confirme tres vite. {salon}',
+  notify_request_confirmed_template: 'Bonjour {prenom}, votre rendez-vous chez {salon} est confirmé pour le {date} à {heure}. Comme convenu avec vous, le tarif de votre coiffure est de {prix}. Référence de votre dossier : {reference}. Nous vous attendons avec plaisir !',
+}
 
 const ALL_KEYS = GROUPS.flatMap((group) => group.fields.map((field) => field.key))
 
@@ -155,7 +178,7 @@ watch(settings, (value) => {
   const source = value ?? {}
   const next = {}
   ALL_KEYS.forEach((key) => {
-    next[key] = source[key] ?? ''
+    next[key] = source[key] === undefined || source[key] === null || source[key] === '' ? (DEFAUTS[key] ?? '') : source[key]
   })
   draft.value = { ...next }
   original.value = { ...next }

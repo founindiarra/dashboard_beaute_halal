@@ -30,7 +30,7 @@ export const useAuthStore = defineStore('auth', () => {
    * serait de toute façon refusé — il ne protège rien par lui-même.
    */
   const permissions = computed(() => user.value?.permissions ?? [])
-  const can = (permission) => permissions.value.includes(permission)
+  const can = (permission) => isAdmin.value || permissions.value.includes(permission)
 
   /** Appelé par le client HTTP dès qu'une requête protégée reçoit un 401. */
   const handleExpiry = () => {

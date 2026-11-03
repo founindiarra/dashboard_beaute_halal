@@ -18,6 +18,7 @@ import {
   formatDateShort,
   formatDateTime,
   formatFcfa,
+  libelleMethode,
   toDateKey,
 } from '@/utils/format'
 
@@ -121,6 +122,12 @@ const consultationOf = (r) => {
   const locks = k.hasLocks === null ? '' : k.hasLocks ? 'a déjà des locks' : 'pas encore de locks'
   const slot = k.date ? `${formatDateShort(k.date)}${k.time ? ` à ${k.time}` : ''}` : ''
   return [mode, locks, slot].filter(Boolean).join(' · ')
+}
+/** Prestation souhaitée après la consultation (la cliente a répondu « Consultation, puis prestation »). */
+const prestationOf = (r) => {
+  if (!r.serviceDate) return ''
+  const quoi = [BESOIN_LABELS[r.besoin] ?? r.besoin, LOCK_TYPE_LABELS[r.lockType] ?? r.lockType, r.besoin === 'creation' ? libelleMethode(r.lockType, r.methode) : null, r.volume ? `volume ${r.volume}` : null, r.longueur || null].filter(Boolean).join(' · ')
+  return `${quoi} · le ${formatDateShort(r.serviceDate)}${r.serviceTime ? ` à ${r.serviceTime}` : ''} (à confirmer)`
 }
 const estimateOf = (r) => (r.estimate ? `${r.estimate.partial ? 'À partir de ' : ''}${formatFcfa(r.estimate.total)}` : '—')
 const canAct = (r) => ['pending', 'contacted', 'confirmed'].includes(r.status)
@@ -270,6 +277,7 @@ const doCancel = async () => {
             <div><dt class="inline text-muted">Jour souhaité : </dt><dd class="inline">{{ r.desiredDate ? formatDateLong(r.desiredDate) : '—' }}</dd></div>
             <div><dt class="inline text-muted">Estimation : </dt><dd class="inline">{{ estimateOf(r) }}</dd></div>
             <div><dt class="inline text-muted">Reçue le : </dt><dd class="inline">{{ formatDateTime(r.createdAt) }}</dd></div>
+            <div v-if="prestationOf(r)" class="sm:col-span-2"><dt class="inline text-muted">Prestation souhaitée : </dt><dd class="inline">{{ prestationOf(r) }}</dd></div>
             <div v-if="consultationOf(r)" class="sm:col-span-2"><dt class="inline text-muted">Consultation : </dt><dd class="inline">{{ consultationOf(r) }}</dd></div>
             <div v-if="r.note" class="sm:col-span-2"><dt class="inline text-muted">Note de la cliente : </dt><dd class="inline">{{ r.note }}</dd></div>
           </dl>

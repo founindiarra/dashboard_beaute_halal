@@ -334,7 +334,7 @@ const filtresActifs = computed(() => Object.values(filtres.value).some(Boolean))
     <!-- Santé des webhooks -->
     <section v-if="overview" class="card flex flex-col gap-3 p-4">
       <header class="flex flex-wrap items-center justify-between gap-2">
-        <h2 class="font-display text-xl text-cocoa-dark">Notifications Jèko (webhooks)</h2>
+        <h2 class="section-title">Notifications Jèko (webhooks)</h2>
         <StatusBadge
           :label="overview.webhooks.lastValidAt ? 'Notifications reçues' : 'Aucune notification valide reçue'"
           :tone="overview.webhooks.lastValidAt ? 'ok' : 'warn'"

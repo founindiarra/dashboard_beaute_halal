@@ -12,7 +12,7 @@ import PageHeader from '@/components/ui/PageHeader.vue'
  */
 const TABS = [
   { id: 'etapes', label: 'Étapes du site' },
-  { id: 'demandes', label: 'Demandes de soin' },
+  { id: 'demandes', label: 'Demandes de consultation' },
   { id: 'historique', label: 'Historique des clientes' },
 ]
 const tab = ref('etapes')
@@ -20,9 +20,9 @@ const tab = ref('etapes')
 
 <template>
   <div class="flex flex-col gap-5">
-    <PageHeader title="Soins capillaires" subtitle="Les étapes de la prise de rendez-vous, les demandes à traiter et l’historique des clientes." />
+    <PageHeader title="Consultation capillaire" subtitle="Les étapes de la prise de rendez-vous, les demandes de consultation et l’historique des clientes." />
 
-    <div class="flex flex-wrap gap-2" role="tablist" aria-label="Soins capillaires">
+    <div class="flex flex-wrap gap-2" role="tablist" aria-label="Consultation capillaire">
       <button
         v-for="t in TABS"
         :key="t.id"

@@ -257,6 +257,7 @@ const VARIABLES = [
   '{prestation}',
   '{reference}',
   '{salon}',
+  '{whatsapp}',
 ]
 
 /* ═══════════════════════════ Composer un envoi ════════════════════════ */

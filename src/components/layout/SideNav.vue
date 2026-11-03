@@ -9,8 +9,8 @@ import { useAuthStore } from '@/stores/auth'
  * liste à plat.
  *
  * L'ordre du groupe « Activité » suit le parcours réel d'une journée :
- * on décide des demandes (Rendez-vous), puis on traite celles qui sont
- * confirmées (Rendez-vous confirmés), et on retrouve ensuite ce qui est
+ * on gère les rendez-vous en cours (Rendez-vous), puis on retrouve
+ * ceux qui sont faits (Rendez-vous terminés) et ensuite ce qui est
  * passé (Historique).
  *
  * Aucune rubrique existante n'a été retirée ni déplacée d'un groupe à
@@ -49,10 +49,9 @@ const GROUPES = [
         permission: 'appointments',
       },
       {
-        name: 'confirmed',
-        label: 'Rendez-vous confirmés',
+        name: 'completed',
+        label: 'Rendez-vous terminés',
         icon: 'check',
-        badge: 'toHandle',
         permission: 'appointments',
       },
       { name: 'history', label: 'Historique', icon: 'refresh', permission: 'appointments' },
@@ -69,7 +68,7 @@ const GROUPES = [
       { name: 'services', label: 'Prestations', icon: 'scissors', permission: 'catalog' },
       { name: 'categories', label: 'Catégories', icon: 'grid', permission: 'catalog' },
       { name: 'testimonials', label: 'Avis clientes', icon: 'star', permission: 'catalog' },
-      { name: 'soins', label: 'Soins capillaires', icon: 'tag', permission: 'soins' },
+      { name: 'soins', label: 'Consultation capillaire', icon: 'tag', permission: 'soins' },
       { name: 'tarifs', label: 'Tarifs du site', icon: 'cash', permission: 'tarifs' },
       { name: 'siteTexts', label: 'Textes et règles du site', icon: 'settings', permission: 'site_texts' },
       { name: 'sitePhotos', label: 'Images des pages', icon: 'image', permission: 'site_photos' },

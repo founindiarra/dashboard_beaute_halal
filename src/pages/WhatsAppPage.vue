@@ -155,14 +155,17 @@ const disconnect = async () => {
 }
 
 /* ── Message d'essai ── */
-const test = ref({ text: '' })
+const test = ref({ to: '', text: '' })
 const testing = ref(false)
 const sendTest = async () => {
-  if (!status.value?.testPhone) return toasts.error('Aucun numéro d’essai n’est configuré sur le serveur.')
+  const to = test.value.to.trim()
+  if (!to && !status.value?.testPhone) return toasts.error('Saisissez le numéro qui doit recevoir l’essai.')
   testing.value = true
   try {
-    // Le destinataire n'est JAMAIS choisi ici : le serveur envoie au numéro de l'administratrice qu'il connaît.
-    const result = await api.testMessage(test.value.text.trim() ? { text: test.value.text.trim() } : {})
+    const payload = {}
+    if (to) payload.to = to
+    if (test.value.text.trim()) payload.text = test.value.text.trim()
+    const result = await api.testMessage(payload)
     if (result.status === 'sent') toasts.success('Message accepté par WhatsApp (la livraison n’est pas confirmée par le service).')
     else toasts.error(result.error || 'Le message n’est pas parti.')
     loadLogs()
@@ -291,15 +294,13 @@ const goPage = (n) => {
 
     <section v-if="status && isConnected" class="card flex flex-col gap-3 p-4">
       <h2 class="font-display text-xl text-cocoa-dark">Message d’essai</h2>
-      <p v-if="status.testPhone" class="text-xs text-muted">
-        Envoie un vrai message depuis le compte connecté, uniquement vers le numéro de l’administratrice enregistré sur le serveur
-        (<strong>{{ status.testPhone }}</strong>). Ce numéro ne se choisit pas depuis cette page.
+      <p class="text-xs text-muted">
+        Envoie un vrai message depuis le compte connecté vers le numéro saisi ci-dessous.
+        <template v-if="status.testPhone">Si le champ reste vide, l’essai part vers le numéro enregistré sur le serveur (<strong>{{ status.testPhone }}</strong>).</template>
       </p>
-      <p v-else class="text-xs text-danger">
-        Aucun numéro d’essai n’est configuré sur le serveur (variable <code>ADMIN_TEST_PHONE</code>) : l’essai est désactivé.
-      </p>
+      <BaseField v-model="test.to" label="Numéro destinataire" placeholder="07 00 00 00 00" />
       <BaseField v-model="test.text" label="Texte (facultatif)" />
-      <div><BaseButton :loading="testing" :disabled="!status.testPhone" @click="sendTest">Envoyer l’essai</BaseButton></div>
+      <div><BaseButton :loading="testing" :disabled="!test.to.trim() && !status.testPhone" @click="sendTest">Envoyer l’essai</BaseButton></div>
     </section>
 
     <section class="card flex flex-col gap-3 p-4">

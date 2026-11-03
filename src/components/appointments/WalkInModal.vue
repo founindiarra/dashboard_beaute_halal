@@ -210,7 +210,6 @@ const valider = () => {
     return 'Indiquez le prénom et le nom de la cliente.'
   }
   if (form.value.phone.replace(/\D/g, '').length < 8) return 'Le numéro de téléphone est incomplet.'
-  if (!form.value.email?.trim()) return 'Indiquez un e-mail : c’est là que part la confirmation.'
   return ''
 }
 
@@ -306,8 +305,7 @@ const enregistrer = async ({ force = false } = {}) => {
           v-model="form.email"
           label="E-mail"
           type="email"
-          required
-          hint="La confirmation et le reçu y sont envoyés."
+          hint="Facultatif. Si la cliente en a un, la confirmation et le reçu y sont envoyés."
         />
 
         <!--

@@ -79,6 +79,39 @@ const saveDiscount = async () => {
   }
 }
 
+/* ── Prix de la prestation ──
+ * Une demande du site arrive souvent sans prix (0 FCFA) : sans prix, rien n'est « à payer » et aucun versement n'est possible.
+ * Le prix se fixe ici, et peut être corrigé tant que rien de plus n'est encaissé. */
+const editingPrice = ref(false)
+const priceForm = ref('')
+const sansPrix = computed(() => Number(props.operation.totals.total) <= 0)
+
+const openPrice = () => {
+  erreur.value = ''
+  priceForm.value = props.operation.totals.total > 0 ? String(props.operation.totals.total) : ''
+  editingPrice.value = true
+}
+
+const savePrice = async () => {
+  erreur.value = ''
+  const montant = Number(priceForm.value)
+  if (!Number.isFinite(montant) || montant <= 0) {
+    erreur.value = 'Indiquez le prix de la prestation (supérieur à zéro).'
+    return
+  }
+  busy.value = true
+  try {
+    const updated = await api.setPrice(props.operation.id, montant)
+    emit('updated', updated)
+    editingPrice.value = false
+    toasts.success(`Prix fixé à ${formatPrice(montant, props.operation.totals.currency)}.`)
+  } catch (caught) {
+    erreur.value = caught?.message || 'Enregistrement impossible.'
+  } finally {
+    busy.value = false
+  }
+}
+
 /* ── Versements ── */
 const paymentForm = ref({ amount: '', note: '' })
 
@@ -141,7 +174,16 @@ const solde = computed(() => props.operation.totals.balance)
         Paiement
       </h2>
       <BaseButton
-        v-if="!editingDiscount && !disabled"
+        v-if="!editingPrice && !disabled && !sansPrix"
+        size="sm"
+        variant="ghost"
+        @click="openPrice"
+      >
+        <AdminIcon name="edit" class="h-3.5 w-3.5" />
+        Modifier le prix
+      </BaseButton>
+      <BaseButton
+        v-if="!editingDiscount && !disabled && !sansPrix"
         size="sm"
         variant="ghost"
         @click="openDiscount"
@@ -158,6 +200,23 @@ const solde = computed(() => props.operation.totals.balance)
     >
       {{ erreur }}
     </p>
+
+    <!-- ── Prix de la prestation ── -->
+    <div v-if="editingPrice" class="flex flex-col gap-3 rounded-xl bg-ivory/60 p-3">
+      <BaseField
+        v-model="priceForm"
+        label="Prix de la prestation"
+        type="number"
+        :min="1"
+        :hint="`En ${operation.totals.currency}. Il ne peut pas être inférieur à ce qui est déjà encaissé.`"
+      />
+      <div class="flex gap-2">
+        <BaseButton size="sm" :loading="busy" @click="savePrice">Enregistrer le prix</BaseButton>
+        <BaseButton size="sm" variant="ghost" :disabled="busy" @click="((editingPrice = false), (erreur = ''))">
+          Annuler
+        </BaseButton>
+      </div>
+    </div>
 
     <!-- ── Réduction ── -->
     <div v-if="editingDiscount" class="flex flex-col gap-3 rounded-xl bg-ivory/60 p-3">
@@ -242,6 +301,16 @@ const solde = computed(() => props.operation.totals.balance)
     <div v-if="disabled" class="rounded-lg bg-ivory/60 px-3 py-2.5 text-xs text-muted">
       L’encaissement s’ouvre une fois la présence de la cliente enregistrée.
     </div>
+
+    <div v-else-if="sansPrix && !editingPrice" class="flex flex-col gap-2 rounded-lg bg-warn-bg px-3 py-2.5 text-xs text-warn">
+      <span>Aucun prix n’est encore fixé pour cette prestation : indiquez-le pour pouvoir enregistrer le versement.</span>
+      <BaseButton size="sm" @click="openPrice">
+        <AdminIcon name="cash" class="h-3.5 w-3.5" />
+        Fixer le prix
+      </BaseButton>
+    </div>
+
+    <div v-else-if="sansPrix" />
 
     <div v-else-if="solde <= 0" class="rounded-lg bg-ok-bg px-3 py-2.5 text-xs text-ok">
       Cette prestation est intégralement réglée.
